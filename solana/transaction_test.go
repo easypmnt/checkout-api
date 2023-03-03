@@ -14,8 +14,6 @@ import (
 var (
 	// solanaRPCEndpoint = "https://api.devnet.solana.com"
 	// solanaWSSEndpoint = "wss://api.devnet.solana.com"
-	solanaRPCEndpoint = "https://fittest-clean-snow.solana-devnet.discover.quiknode.pro/05be1c0ad5f330156e1f6260f4033de6051b415e/"
-	solanaWSSEndpoint = "wss://fittest-clean-snow.solana-devnet.discover.quiknode.pro/05be1c0ad5f330156e1f6260f4033de6051b415e/"
 
 	wallet1, _ = types.AccountFromBase58("4JVyzx75j9s91TgwVqSPFN4pb2D8ACPNXUKKnNBvXuGukEzuFEg3sLqhPGwYe9RRbDnVoYHjz4bwQ5yUfyRZVGVU")
 	wallet2, _ = types.AccountFromBase58("2x3dkFDgZbq9kjRPRv8zzXzcpj8rZKLCTEgGj52KT7RUmkNy8gSaSDCP5vDhPkspAam6WPEiZxVUatA8nHSSSj79")
@@ -98,11 +96,6 @@ func TestSendSOL_WithReference(t *testing.T) {
 	referenceAcc := types.NewAccount()
 	fmt.Println("referenceAcc", referenceAcc.PublicKey.ToBase58())
 
-	// t.Run("wallets", func(t *testing.T) {
-	// 	fmt.Println("wallet1", wallet1.PublicKey.ToBase58())
-	// 	fmt.Println("wallet2", wallet2.PublicKey.ToBase58())
-	// })
-
 	// check wallet1 balance of SOL
 	t.Run("check wallet1 balance of SOL", func(t *testing.T) {
 		balance, err := client.GetSOLBalance(ctx, wallet1.PublicKey.ToBase58())
@@ -160,6 +153,15 @@ func TestSendSOL_WithReference(t *testing.T) {
 		wallet2Balance, err := client.GetSOLBalance(ctx, wallet2.PublicKey.ToBase58())
 		require.NoError(t, err)
 		require.EqualValues(t, wallet2InitBalance.Amount+amountToSend, wallet2Balance.Amount)
+	})
+
+	t.Run("verify transaction by reference", func(t *testing.T) {
+		txResp, err := client.GetOldestTransactionForWallet(ctx, referenceAcc.PublicKey.ToBase58(), "")
+		require.NoError(t, err)
+		require.NotNil(t, txResp)
+		require.True(t, txResp.Meta.PreBalances[0] > txResp.Meta.PostBalances[0])
+		require.True(t, txResp.Meta.PreBalances[1] < txResp.Meta.PostBalances[1])
+		require.EqualValues(t, txResp.Meta.PostBalances[0], txResp.Meta.PreBalances[0]-int64(amountToSend)-int64(txResp.Meta.Fee))
 	})
 
 	// check wallet2 balance of SOL
