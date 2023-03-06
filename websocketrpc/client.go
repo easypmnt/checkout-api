@@ -1,164 +1,277 @@
 package websocketrpc
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"log"
-	"net/url"
-	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
-// Client represents a WebSocket JSON-RPC client
-type Client struct {
-	conn          *websocket.Conn
-	lock          sync.RWMutex
-	done          chan struct{}
-	nextReqID     int
-	eventHandlers map[string][]func(json.RawMessage)
-	errorHandler  func(error)
-}
+type (
+	Client struct {
+		conn *websocket.Conn
+		log  logger
 
-// NewClient creates a new WebSocket JSON-RPC client
-func NewClient(endpoint string, errorHandler func(error)) (*Client, error) {
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing endpoint URL: %v", err)
+		nextReqID uint64
+
+		subscriptions     *subscriptions
+		eventHandlers     *eventHandlers
+		responseCallbacks *responseCallbacks
+
+		reqChan   chan *Request
+		respChan  chan *Response
+		eventChan chan *Event
+		done      chan bool
 	}
 
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("error dialing endpoint: %v", err)
-	}
+	ClientOption     func(*Client)
+	EventHandler     func(json.RawMessage) error
+	ResponseCallback func(json.RawMessage, error) error
 
+	logger interface {
+		Infof(format string, args ...interface{})
+		Errorf(format string, args ...interface{})
+	}
+)
+
+// NewClient creates a new websocket rpc client.
+// It accepts a websocket connection and optional client options.
+func NewClient(conn *websocket.Conn, opts ...ClientOption) *Client {
 	c := &Client{
-		conn:          conn,
-		eventHandlers: make(map[string][]func(json.RawMessage)),
-		done:          make(chan struct{}),
-		nextReqID:     1,
-		errorHandler: func(err error) {
-			log.Printf("websocket client error: %v", err)
-		},
+		conn:      conn,
+		nextReqID: 1,
+
+		subscriptions:     newSubscriptions(),
+		eventHandlers:     newEventHandlers(),
+		responseCallbacks: newResponseCallbacks(),
+
+		reqChan:   make(chan *Request, 1000),
+		respChan:  make(chan *Response, 1000),
+		eventChan: make(chan *Event, 1000),
+		done:      make(chan bool),
 	}
 
-	if errorHandler != nil {
-		c.errorHandler = errorHandler
+	for _, opt := range opts {
+		opt(c)
 	}
 
-	return c, nil
+	if c.log == nil {
+		c.log = logrus.New()
+	}
+
+	return c
 }
 
-// Stop gracefully stops the client by closing the WebSocket connection
-func (c *Client) Stop() error {
-	close(c.done)
-	return c.conn.Close()
+// SetEventHandler sets the event handler for the given event name.
+func (c *Client) SetEventHandler(eventName string, handler EventHandler) {
+	c.eventHandlers.Set(eventName, handler)
 }
 
-// SendEvent sends a JSON-RPC event to the server
-func (c *Client) SendEvent(method string, params []interface{}) error {
-	event := &Request{
-		Version: "2.0",
-		Method:  method,
-		Params:  params,
-	}
-
-	if err := c.conn.WriteJSON(event); err != nil {
-		return fmt.Errorf("error sending JSON-RPC event: %v", err)
-	}
-
-	return nil
+// RemoveEventHandler removes the event handler for the given event name.
+func (c *Client) RemoveEventHandler(eventName string) {
+	c.eventHandlers.Delete(eventName)
 }
 
-// SendRequest sends a JSON-RPC request to the server and returns the response
-func (c *Client) SendRequest(method string, params []interface{}) (*Response, error) {
-	req := &Request{
+// Subscribe subscribes for account notifications to the given wallet address.
+func (c *Client) Subscribe(base58Addr string) error {
+	c.log.Infof("websocketrpc: subscribing to account %s", base58Addr)
+	err := c.sendRequest(&Request{
 		Version: "2.0",
 		ID:      c.nextReqID,
-		Method:  method,
-		Params:  params,
-	}
-
-	if err := c.conn.WriteJSON(req); err != nil {
-		return nil, fmt.Errorf("error sending JSON-RPC request: %v", err)
-	}
-
-	c.nextReqID++
-
-	var res Response
-	if err := c.conn.ReadJSON(&res); err != nil {
-		return nil, fmt.Errorf("error reading JSON-RPC response: %v", err)
-	}
-
-	return &res, nil
-}
-
-// RegisterEventHandler registers an event handler for the given event name.
-// The handler will be called when an event with the given name is received.
-func (c *Client) RegisterEventHandler(name string, handler func(json.RawMessage)) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	c.eventHandlers[name] = append(c.eventHandlers[name], handler)
-}
-
-// Run starts the client and listens for incoming events and responses
-func (c *Client) Run() {
-	go c.listen()
-
-	<-c.done
-}
-
-func (c *Client) listen() {
-	for {
-		var event Event
-		if err := c.conn.ReadJSON(&event); err != nil {
-			c.errorHandler(fmt.Errorf("error reading JSON-RPC event: %v", err))
-			return
+		Method:  SubscribeAccountRequest,
+		Params:  AccountSubscribeRequestPayload(base58Addr),
+	}, func(resp json.RawMessage, err error) error {
+		if err != nil {
+			return fmt.Errorf("websocketrpc: subscribe: %w", err)
 		}
 
-		if event.Params == nil {
-			continue
+		var subID int64
+		if err := json.Unmarshal(resp, &subID); err != nil {
+			return fmt.Errorf("websocketrpc: subscribe: %w", err)
 		}
 
-		// Event
-		c.lock.RLock()
-		handlers, ok := c.eventHandlers[event.Method]
-		c.lock.RUnlock()
-		if !ok {
-			continue
+		if subID == 0 {
+			return fmt.Errorf("websocketrpc: subscribe: failed to subscribe")
 		}
 
-		for _, handler := range handlers {
-			handler(event.Params)
-		}
-	}
-}
+		c.subscriptions.Set(subID, base58Addr)
+		c.log.Infof("websocketrpc: subscribed to account %s with subscription ID %d", base58Addr, subID)
 
-// Subscribe subscribes to the given event name and returns a subscription id or an error.
-func (c *Client) Subscribe(name RequestType, params []interface{}) (int, error) {
-	res, err := c.SendRequest(string(name), params)
+		return nil
+	})
 	if err != nil {
-		return 0, err
-	}
-
-	if res.Error != nil {
-		return 0, fmt.Errorf("error subscribing to event: %v", res.Error)
-	}
-
-	return res.Result.(int), nil
-}
-
-// Unsubscribe unsubscribes from the given event name and subscription id or returns an error.
-func (c *Client) Unsubscribe(name RequestType, id int) error {
-	res, err := c.SendRequest(string(name), []interface{}{id})
-	if err != nil {
-		return err
-	}
-
-	if res.Error != nil {
-		return fmt.Errorf("error unsubscribing from event: %v", res.Error)
+		return fmt.Errorf("websocketrpc: subscribe: %w", err)
 	}
 
 	return nil
+}
+
+// Unsubscribe unsubscribes from account notifications for the given subscription ID.
+func (c *Client) Unsubscribe(subID int64) error {
+	c.log.Infof("websocketrpc: unsubscribing from account with subscription ID %d", subID)
+	err := c.sendRequest(&Request{
+		Version: "2.0",
+		ID:      c.nextReqID,
+		Method:  UnsubscribeAccountRequest,
+		Params:  AccountUnsubscribeRequestPayload(subID),
+	}, func(resp json.RawMessage, err error) error {
+		if err != nil {
+			return fmt.Errorf("websocketrpc: unsubscribe: %w", err)
+		}
+
+		var result bool
+		if err := json.Unmarshal(resp, &result); err != nil {
+			return fmt.Errorf("websocketrpc: unsubscribe: %w", err)
+		}
+
+		if !result {
+			return fmt.Errorf("websocketrpc: unsubscribe: failed to unsubscribe")
+		}
+
+		c.subscriptions.Delete(subID)
+		c.log.Infof("websocketrpc: unsubscribed from account with subscription ID %d", subID)
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("websocketrpc: unsubscribe: %w", err)
+	}
+
+	return nil
+}
+
+// unsubscribeAll unsubscribes from all account notifications.
+func (c *Client) unsubscribeAll() error {
+	c.log.Infof("websocketrpc: unsubscribing from all accounts")
+
+	subscriptions := c.subscriptions.GetAll()
+	for subID := range subscriptions {
+		if err := c.Unsubscribe(subID); err != nil {
+			return fmt.Errorf("websocketrpc: unsubscribe all: %w", err)
+		}
+	}
+
+	// wait for all subscriptions to be removed
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if c.subscriptions.Len() == 0 {
+				c.log.Infof("websocketrpc: unsubscribed from all accounts")
+				c.done <- true
+				return nil
+			}
+		case <-c.done:
+			return nil
+		}
+	}
+}
+
+// sendRequest sends a JSON-RPC v2 request to the websocket server.
+// The response is returned as a json.RawMessage or an error.
+func (c *Client) sendRequest(req *Request, callback ResponseCallback) error {
+	c.log.Infof("websocketrpc: sending request: %s", req)
+	if c.conn == nil {
+		return ErrConnectionClosed
+	}
+
+	if req.ID != nil && callback != nil {
+		c.responseCallbacks.Set(req.ID, callback)
+	}
+
+	c.reqChan <- req
+	atomic.AddUint64(&c.nextReqID, 1)
+
+	c.log.Infof("websocketrpc: sent request: %s", req)
+	return nil
+}
+
+// listen function listens for incoming JSON-RPC v2 events and notifications.
+// It calls the appropriate callback function.
+func (c *Client) listen() error {
+	c.log.Infof("websocketrpc: listening for events")
+
+	for {
+		var msg json.RawMessage
+		if err := c.conn.ReadJSON(&msg); err != nil {
+			c.log.Errorf("websocketrpc: listen: error reading message: %v", err)
+			continue
+		}
+
+		var parsedMsg messagePayload
+		if err := json.Unmarshal(msg, &parsedMsg); err != nil {
+			c.log.Errorf("websocketrpc: listen: error unmarshaling event: %v", err)
+			continue
+		}
+
+		c.log.Infof("websocketrpc: received message: %v", parsedMsg)
+
+		if parsedMsg.IsEvent() {
+			c.eventChan <- &Event{
+				Method: parsedMsg.Method,
+				Params: parsedMsg.Params,
+			}
+
+			continue
+		}
+
+		if parsedMsg.IsResponse() {
+			c.respChan <- &Response{
+				Version: parsedMsg.Version,
+				ID:      parsedMsg.ID,
+				Result:  parsedMsg.Result,
+				Error:   parsedMsg.Error,
+			}
+
+			continue
+		}
+	}
+}
+
+// run function runs the websocket rpc service.
+func (c *Client) run(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			c.log.Infof("websocketrpc: run: context done")
+			if err := c.unsubscribeAll(); err != nil {
+				c.log.Errorf("websocketrpc: run: %v", err)
+			}
+			return nil
+		case req := <-c.reqChan:
+			c.log.Infof("websocketrpc: run: sending request: %s", req)
+			if err := c.conn.WriteJSON(req); err != nil {
+				c.log.Errorf("websocketrpc: run: error writing request: %v", err)
+			}
+		case event := <-c.eventChan:
+			c.log.Infof("websocketrpc: run: received event: %s", event)
+			if h, ok := c.eventHandlers.Get(event.Method); ok && h != nil {
+				if err := h(event.Params); err != nil {
+					c.log.Errorf("websocketrpc: run: error handling event: %v", err)
+				}
+			}
+		case resp := <-c.respChan:
+			c.log.Infof("websocketrpc: run: received response: %s", resp)
+			if callback, ok := c.responseCallbacks.Get(resp.ID); ok {
+				c.responseCallbacks.Delete(resp.ID)
+				if err := callback(resp.Result, resp.Error); err != nil {
+					c.log.Errorf("websocketrpc: run: error handling response: %v", err)
+				}
+			}
+		}
+	}
+}
+
+// Run websocket rpc service.
+func (c *Client) Run(ctx context.Context) {
+	go c.listen()
+	go c.run(ctx)
+
+	// Wait for the run function to finish.
+	<-c.done
 }
