@@ -19,6 +19,13 @@ var (
 	wallet2, _ = types.AccountFromBase58("2x3dkFDgZbq9kjRPRv8zzXzcpj8rZKLCTEgGj52KT7RUmkNy8gSaSDCP5vDhPkspAam6WPEiZxVUatA8nHSSSj79")
 )
 
+func TestEnv(t *testing.T) {
+	require.NotEmpty(t, solanaRPCEndpoint)
+	require.NotEmpty(t, solanaWSSEndpoint)
+	fmt.Println("solanaRPCEndpoint", solanaRPCEndpoint)
+	fmt.Println("solanaWSSEndpoint", solanaWSSEndpoint)
+}
+
 func TestSendSOL(t *testing.T) {
 	client := solana.NewClient(solana.WithRPCEndpoint(solanaRPCEndpoint))
 	amountToSend := uint64(2500000)              // 0.0025 SOL

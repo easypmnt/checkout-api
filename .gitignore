@@ -15,3 +15,4 @@
 # vendor/
 solana/solana_config_test.go
 cmd/tests/*
+.env
