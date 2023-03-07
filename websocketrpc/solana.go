@@ -43,9 +43,7 @@ func AccountSubscribeRequestPayload(base58Addr string) []interface{} {
 
 // AccountUnsubscribeRequestPayload returns an account unsubscribe request payload.
 func AccountUnsubscribeRequestPayload(subscriptionID interface{}) []interface{} {
-	return []interface{}{
-		subscriptionID,
-	}
+	return []interface{}{subscriptionID}
 }
 
 // NotificationPayload represents an notification payload from the websocket server.
