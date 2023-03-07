@@ -30,7 +30,7 @@ type (
 	}
 
 	ClientOption     func(*Client)
-	EventHandler     func(json.RawMessage) error
+	EventHandler     func(base58Addr string, event json.RawMessage) error
 	ResponseCallback func(json.RawMessage, error) error
 
 	logger interface {
@@ -148,6 +148,16 @@ func (c *Client) Unsubscribe(subID float64) error {
 	return nil
 }
 
+// UnsubscribeByAddress unsubscribes from account notifications for the given wallet address.
+func (c *Client) UnsubscribeByAddress(base58Addr string) error {
+	subID, ok := c.subscriptions.GetKeyByValue(base58Addr)
+	if !ok {
+		return fmt.Errorf("websocketrpc: unsubscribe by address: no subscription found for address %s", base58Addr)
+	}
+
+	return c.Unsubscribe(subID)
+}
+
 // unsubscribeAll unsubscribes from all account notifications.
 func (c *Client) unsubscribeAll() error {
 	subscriptions := c.subscriptions.GetAll()
@@ -238,8 +248,15 @@ func (c *Client) runner() error {
 		case event, open := <-c.eventChan:
 			if open {
 				if h, ok := c.eventHandlers.Get(event.Method); ok {
-					if err := h(event.Params); err != nil {
-						c.log.Errorf("websocketrpc: run: error handling event: %v", err)
+					if sid, err := event.Params.Subscription.Float64(); err == nil && sid > 0 {
+						base58Addr, ok := c.subscriptions.Get(sid)
+						if !ok {
+							c.log.Errorf("websocketrpc: run: error handling event: subscription ID %d not found", sid)
+							continue
+						}
+						if err := h(base58Addr, event.Params.Result); err != nil {
+							c.log.Errorf("websocketrpc: run: error handling event: %v", err)
+						}
 					}
 				}
 			}

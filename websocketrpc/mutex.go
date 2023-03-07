@@ -132,3 +132,15 @@ func (s *subscriptions) Len() int {
 	defer s.RUnlock()
 	return len(s.m)
 }
+
+// GetKeyByValue gets the key for the given value.
+func (s *subscriptions) GetKeyByValue(value string) (float64, bool) {
+	s.RLock()
+	defer s.RUnlock()
+	for k, v := range s.m {
+		if v == value {
+			return k, true
+		}
+	}
+	return 0, false
+}

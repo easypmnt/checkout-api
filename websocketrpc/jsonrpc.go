@@ -37,9 +37,15 @@ func (e *Error) Error() string {
 
 // Event represents a JSON-RPC event
 type Event struct {
-	Version string          `json:"jsonrpc"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
+	Version string       `json:"jsonrpc"`
+	Method  string       `json:"method"`
+	Params  *EventParams `json:"params,omitempty"`
+}
+
+// EventParams represents the params of a JSON-RPC event
+type EventParams struct {
+	Result       json.RawMessage `json:"result,omitempty"`
+	Subscription json.Number     `json:"subscription,omitempty"`
 }
 
 // messagePayload represents a JSON-RPC response/event payload
@@ -49,7 +55,7 @@ type messagePayload struct {
 	Result  json.RawMessage `json:"result,omitempty"`
 	Error   *Error          `json:"error,omitempty"`
 	Method  string          `json:"method,omitempty"`
-	Params  json.RawMessage `json:"params,omitempty"`
+	Params  *EventParams    `json:"params,omitempty"`
 }
 
 // IsEvent returns true if the message is an event
