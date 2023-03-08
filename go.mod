@@ -3,6 +3,7 @@ module github.com/easypmnt/checkout-api
 go 1.20
 
 require (
+	github.com/google/go-querystring v1.1.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/mr-tron/base58 v1.2.0
 	github.com/pkg/errors v0.9.1
