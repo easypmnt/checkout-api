@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-// PrittyPrint prints the given interface in a pretty format
-func PrittyPrint(v ...interface{}) {
+// PrettyPrint prints the given interface in a pretty format
+func PrettyPrint(v ...interface{}) {
 	for _, i := range v {
 		b, err := json.MarshalIndent(i, "", "  ")
 		if err != nil {
