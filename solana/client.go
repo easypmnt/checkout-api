@@ -2,12 +2,17 @@ package solana
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
+	"github.com/easypmnt/checkout-api/solana/metadata"
 	"github.com/pkg/errors"
 	"github.com/portto/solana-go-sdk/client"
 	"github.com/portto/solana-go-sdk/common"
+	"github.com/portto/solana-go-sdk/program/metaplex/token_metadata"
 	"github.com/portto/solana-go-sdk/rpc"
 )
 
@@ -15,8 +20,9 @@ type (
 	// Client struct is a wrapper for the solana-go-sdk client.
 	// It implements the SolanaClient interface.
 	Client struct {
-		rpcClient *client.Client
-		wsClient  *client.Client
+		rpcClient     *client.Client
+		wsClient      *client.Client
+		tokenListPath string
 	}
 
 	// ClientOption is a function that configures the Client.
@@ -25,7 +31,9 @@ type (
 
 // NewClient creates a new Client instance.
 func NewClient(opts ...ClientOption) *Client {
-	c := &Client{}
+	c := &Client{
+		tokenListPath: "https://raw.githubusercontent.com/solana-labs/token-list/main/src/tokens/solana.tokenlist.json",
+	}
 	for _, opt := range opts {
 		opt(c)
 	}
@@ -46,6 +54,13 @@ func WithRPCClient(rpcClient *client.Client) ClientOption {
 func WithRPCEndpoint(endpoint string) ClientOption {
 	return func(c *Client) {
 		c.rpcClient = client.NewClient(endpoint)
+	}
+}
+
+// WithTokenListPath sets the token list path.
+func WithTokenListPath(path string) ClientOption {
+	return func(c *Client) {
+		c.tokenListPath = path
 	}
 }
 
@@ -268,4 +283,122 @@ func (c *Client) GetTransaction(ctx context.Context, txSignature string) (*clien
 	}
 
 	return tx, nil
+}
+
+// GetTokenSupply returns the token supply for a given mint address.
+// This is a wrapper around the GetTokenSupply function from the solana-go-sdk.
+// base58MintAddr is the base58 encoded address of the token mint.
+// The function returns the token supply and decimals or an error.
+func (c *Client) GetTokenSupply(ctx context.Context, base58MintAddr string) (Balance, error) {
+	amount, decimals, err := c.rpcClient.GetTokenSupply(ctx, base58MintAddr)
+	if err != nil {
+		return Balance{}, fmt.Errorf("failed to get token supply: %w", err)
+	}
+
+	return NewBalance(amount, decimals), nil
+}
+
+// GetFungibleTokenMetadata returns the on-chain SPL token metadata by the given base58 encoded SPL token mint address.
+// Returns the token metadata or an error.
+func (c *Client) GetFungibleTokenMetadata(ctx context.Context, base58MintAddr string) (result *FungibleTokenMetadata, err error) {
+	// fallback to the deprecated metadata account if the given mint address has no on-chain metadata
+	defer func() {
+		if result == nil {
+			fmt.Printf("on-chain error: %v", err)
+			result, err = c.getDeprecatedTokenMetadata(ctx, base58MintAddr)
+			fmt.Println("using deprecated metadata")
+		}
+	}()
+
+	metadataAccount, err := token_metadata.GetTokenMetaPubkey(common.PublicKeyFromString(base58MintAddr))
+	if err != nil {
+		return result, fmt.Errorf("failed to get token metadata account: %w", err)
+	}
+
+	accountInfo, err := c.rpcClient.GetAccountInfo(ctx, metadataAccount.ToBase58())
+	if err != nil {
+		return result, fmt.Errorf("failed to get account info: %w", err)
+	}
+
+	md, err := token_metadata.MetadataDeserialize(accountInfo.Data)
+	if err != nil {
+		return result, fmt.Errorf("failed to deserialize metadata: %w", err)
+	}
+
+	result = &FungibleTokenMetadata{
+		Mint:   base58MintAddr,
+		Name:   md.Data.Name,
+		Symbol: md.Data.Symbol,
+	}
+
+	if md.Data.Uri != "" && strings.HasPrefix(md.Data.Uri, "http") {
+		mde, err := metadata.MetadataFromURI(md.Data.Uri)
+		if err != nil {
+			return result, fmt.Errorf("failed to get additional metadata from uri: %w", err)
+		}
+
+		result.Description = mde.Description
+		result.LogoURI = mde.Image
+		result.ExternalURL = mde.ExternalURL
+
+		if sup, err := c.GetTokenSupply(ctx, base58MintAddr); err == nil {
+			result.Decimals = sup.Decimals
+		}
+	}
+
+	return result, nil
+}
+
+// @deprecated
+// getDeprecatedTokenMetadata returns the deprecated SPL token metadata by the given base58 encoded SPL token mint address.
+// This is a temporary solution to support the deprecated metadata format.
+// Returns the token metadata or an error.
+// Works only with mainnet.
+func (c *Client) getDeprecatedTokenMetadata(_ context.Context, base58MintAddr string) (*FungibleTokenMetadata, error) {
+	if c.tokenListPath == "" || base58MintAddr == "" {
+		return nil, fmt.Errorf("failed to get token metadata: token list path or mint address is empty")
+	}
+
+	resp, err := http.Get(c.tokenListPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download token list from uri: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var tokenList TokenList
+	if err := json.NewDecoder(resp.Body).Decode(&tokenList); err != nil {
+		return nil, fmt.Errorf("failed to decode token list from uri: %w", err)
+	}
+
+	// Find token metadata.
+	var tokenMeta TokenListToken
+	for _, token := range tokenList.Tokens {
+		if token.Address == base58MintAddr && token.ChainID == ChainIdMainnet {
+			tokenMeta = token
+			break
+		}
+	}
+
+	result := FungibleTokenMetadata{
+		Mint:     base58MintAddr,
+		Name:     tokenMeta.Name,
+		Symbol:   tokenMeta.Symbol,
+		Decimals: uint8(tokenMeta.Decimals),
+		LogoURI:  tokenMeta.LogoURI,
+	}
+
+	if tokenMeta.Extensions != nil {
+		if tokenMeta.Extensions["description"] != nil {
+			result.Description = tokenMeta.Extensions["description"].(string)
+		}
+		if tokenMeta.Extensions["website"] != nil {
+			result.ExternalURL = tokenMeta.Extensions["website"].(string)
+		} else if tokenMeta.Extensions["twitter"] != nil {
+			result.ExternalURL = tokenMeta.Extensions["twitter"].(string)
+		} else if tokenMeta.Extensions["discord"] != nil {
+			result.ExternalURL = tokenMeta.Extensions["discord"].(string)
+		}
+	}
+
+	return &result, nil
 }
