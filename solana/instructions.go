@@ -3,11 +3,15 @@ package solana
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/easypmnt/checkout-api/solana/metadata"
+	"github.com/easypmnt/checkout-api/utils"
 	"github.com/pkg/errors"
 	"github.com/portto/solana-go-sdk/common"
 	"github.com/portto/solana-go-sdk/program/associated_token_account"
 	"github.com/portto/solana-go-sdk/program/memo"
+	"github.com/portto/solana-go-sdk/program/metaplex/token_metadata"
 	"github.com/portto/solana-go-sdk/program/system"
 	"github.com/portto/solana-go-sdk/program/token"
 	"github.com/portto/solana-go-sdk/types"
@@ -202,5 +206,180 @@ func TransferToken(params TransferTokenParam) InstructionFunc {
 		}
 
 		return []types.Instruction{instruction}, nil
+	}
+}
+
+// MintFungibleParam defines the parameters for the MintFungible instruction.
+type MintFungibleParam struct {
+	Mint     common.PublicKey  // required; The token mint public key
+	MintTo   common.PublicKey  // required; The wallet to mint tokens to
+	FeePayer *common.PublicKey // optional; The wallet to pay the fees from; default is MintTo
+
+	Decimals    uint8  // required; The number of decimals the token has.
+	MetadataURI string // optional; URI of the token metadata; can be set later
+	TokenName   string // optional; Name of the token; used for the token metadata if MetadataURI is not set.
+	TokenSymbol string // optional; Symbol of the token; used for the token metadata if MetadataURI is not set.
+}
+
+// Validate checks that the required fields of the params are set.
+func (p MintFungibleParam) Validate() error {
+	if p.Mint == (common.PublicKey{}) {
+		return fmt.Errorf("field Mint is required")
+	}
+	if p.MintTo == (common.PublicKey{}) {
+		return fmt.Errorf("field MintTo is required")
+	}
+	if p.MetadataURI != "" && !strings.HasPrefix(p.MetadataURI, "http") {
+		return fmt.Errorf("field MetadataURI must be a valid URI")
+	}
+	if p.FeePayer != nil && *p.FeePayer == (common.PublicKey{}) {
+		return fmt.Errorf("invalid fee payer public key")
+	}
+	if p.MetadataURI == "" && (p.TokenName == "" || p.TokenSymbol == "") {
+		return fmt.Errorf("field TokenName and TokenSymbol are required if MetadataURI is not set")
+	}
+	if p.TokenName != "" && (len(p.TokenName) < 2 || len(p.TokenName) > 32) {
+		return fmt.Errorf("token name must be between 2 and 32 characters")
+	}
+	if p.TokenSymbol != "" && (len(p.TokenSymbol) < 3 || len(p.TokenSymbol) > 10) {
+		return fmt.Errorf("token symbol must be between 3 and 10 characters")
+	}
+	return nil
+}
+
+// MintFungible creates instructions for minting fungible tokens or assets.
+// The token mint account must be created before calling this function.
+// To mint common fungible tokens, decimals must be greater than 0.
+// If decimals is 0, the token is fungible asset.
+func MintFungible(params MintFungibleParam) InstructionFunc {
+	return func(ctx context.Context, c SolanaClient) ([]types.Instruction, error) {
+		if err := params.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid params: %w", err)
+		}
+
+		if params.FeePayer == nil {
+			params.FeePayer = &params.MintTo
+		}
+
+		metaPubkey, err := token_metadata.GetTokenMetaPubkey(params.Mint)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get token metadata pubkey: %w", err)
+		}
+
+		var metadataV2 token_metadata.DataV2
+		if params.MetadataURI != "" {
+			md, err := metadata.MetadataFromURI(params.MetadataURI)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get metadata from URI: %w", err)
+			}
+
+			if md.Name == "" || len(md.Name) < 2 || len(md.Name) > 32 {
+				return nil, fmt.Errorf("metadata name must be between 2 and 32 characters")
+			}
+			if md.Symbol == "" || len(md.Symbol) < 2 || len(md.Symbol) > 10 {
+				return nil, fmt.Errorf("metadata symbol must be between 2 and 10 characters")
+			}
+
+			metadataV2 = token_metadata.DataV2{
+				Name:   md.Name,
+				Symbol: md.Symbol,
+				Uri:    params.MetadataURI,
+			}
+		} else {
+			metadataV2 = token_metadata.DataV2{
+				Name:   params.TokenName,
+				Symbol: params.TokenSymbol,
+			}
+		}
+
+		rentExemption, err := c.GetMinimumBalanceForRentExemption(ctx, token.MintAccountSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get minimum balance for rent exemption: %w", err)
+		}
+
+		instructions := []types.Instruction{
+			system.CreateAccount(system.CreateAccountParam{
+				From:     *params.FeePayer,
+				New:      params.Mint,
+				Owner:    common.TokenProgramID,
+				Lamports: rentExemption,
+				Space:    token.MintAccountSize,
+			}),
+			token.InitializeMint2(token.InitializeMint2Param{
+				Decimals:   params.Decimals,
+				Mint:       params.Mint,
+				MintAuth:   params.MintTo,
+				FreezeAuth: utils.Pointer(params.MintTo),
+			}),
+			token_metadata.CreateMetadataAccountV2(token_metadata.CreateMetadataAccountV2Param{
+				Metadata:                metaPubkey,
+				Mint:                    params.Mint,
+				MintAuthority:           params.MintTo,
+				Payer:                   *params.FeePayer,
+				UpdateAuthority:         params.MintTo,
+				UpdateAuthorityIsSigner: true,
+				IsMutable:               true,
+				Data:                    metadataV2,
+			}),
+		}
+
+		return instructions, nil
+	}
+}
+
+// UpdateFungibleMetadataParams is the params for UpdateMetadata
+type UpdateFungibleMetadataParams struct {
+	Mint            common.PublicKey // required; The mint of the token
+	UpdateAuthority common.PublicKey // required; The update authority of the token
+	MetadataUri     *string          // optional; new metadata json uri
+}
+
+// Validate validates the params.
+func (p UpdateFungibleMetadataParams) Validate() error {
+	if p.Mint == (common.PublicKey{}) {
+		return fmt.Errorf("mint is required")
+	}
+	if p.UpdateAuthority == (common.PublicKey{}) {
+		return fmt.Errorf("update authority is required")
+	}
+	if p.MetadataUri != nil &&
+		(*p.MetadataUri == "" ||
+			(!strings.HasPrefix(*p.MetadataUri, "http://") &&
+				!strings.HasPrefix(*p.MetadataUri, "https://"))) {
+		return fmt.Errorf("metadata uri is invalid")
+	}
+	return nil
+}
+
+// UpdateFungibleMetadata updates the metadata of the fungible token.
+func UpdateFungibleMetadata(params UpdateFungibleMetadataParams) InstructionFunc {
+	return func(ctx context.Context, c SolanaClient) ([]types.Instruction, error) {
+		if err := params.Validate(); err != nil {
+			return nil, fmt.Errorf("validate update metadata: %w", err)
+		}
+
+		tokenMetadataPubkey, err := token_metadata.GetTokenMetaPubkey(params.Mint)
+		if err != nil {
+			return nil, fmt.Errorf("failed to derive token metadata pubkey: %w", err)
+		}
+
+		newMeta, err := metadata.MetadataFromURI(*params.MetadataUri)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get metadata from URI: %w", err)
+		}
+
+		instructions := []types.Instruction{
+			token_metadata.UpdateMetadataAccount(token_metadata.UpdateMetadataAccountParam{
+				MetadataAccount: tokenMetadataPubkey,
+				UpdateAuthority: params.UpdateAuthority,
+				Data: &token_metadata.Data{
+					Name:   newMeta.Name,
+					Symbol: newMeta.Symbol,
+					Uri:    *params.MetadataUri,
+				},
+			}),
+		}
+
+		return instructions, nil
 	}
 }
