@@ -72,3 +72,48 @@ func ParseTransactionStatus(s rpc.Commitment) TransactionStatus {
 		return TransactionStatusUnknown
 	}
 }
+
+// FungibleTokenMetadata represents the metadata of a fungible token.
+type FungibleTokenMetadata struct {
+	Mint        string `json:"mint"`
+	Name        string `json:"name"`
+	Symbol      string `json:"symbol"`
+	Decimals    uint8  `json:"decimals"`
+	LogoURI     string `json:"logo_uri"`
+	Description string `json:"description,omitempty"`
+	ExternalURL string `json:"external_url,omitempty"`
+}
+
+// @deprecated
+// This is a temporary solution to support the deprecated metadata format.
+type (
+	TokenList struct {
+		Name     string                  `json:"name"`
+		LogoURI  string                  `json:"logoURI"`
+		Keywords []string                `json:"keywords"`
+		Tags     map[string]TokenListTag `json:"tags"`
+		Tokens   []TokenListToken        `json:"tokens"`
+	}
+
+	TokenListTag struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+
+	TokenListToken struct {
+		ChainID    int                    `json:"chainId"`
+		Address    string                 `json:"address"`
+		Symbol     string                 `json:"symbol"`
+		Name       string                 `json:"name"`
+		Decimals   int                    `json:"decimals"`
+		LogoURI    string                 `json:"logoURI"`
+		Tags       []string               `json:"tags,omitempty"`
+		Extensions map[string]interface{} `json:"extensions,omitempty"`
+	}
+)
+
+// Token list chain IDs
+const (
+	ChainIdMainnet = 101 // Mainnet-beta
+	ChainIdTestnet = 102 // Testnet
+)

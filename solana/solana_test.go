@@ -103,3 +103,35 @@ func TestSendSOL_WithReference(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, wallet2InitBalance.Amount+amountToSend, wallet2Balance.Amount)
 }
+
+func TestGetDeprecatedTokenMeta(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	client := solana.NewClient(solana.WithRPCEndpoint(solanaRPCEndpoint))
+
+	mintAddr := "So11111111111111111111111111111111111111112"
+	tokenMeta, err := client.GetFungibleTokenMetadata(ctx, mintAddr)
+	require.NoError(t, err)
+	require.NotNil(t, tokenMeta)
+	require.EqualValues(t, "Wrapped SOL", tokenMeta.Name)
+	require.EqualValues(t, "SOL", tokenMeta.Symbol)
+	require.EqualValues(t, 9, tokenMeta.Decimals)
+	require.EqualValues(t, "https://solana.com/", tokenMeta.ExternalURL)
+}
+
+func TestGetOnChainTokenMeta(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	client := solana.NewClient(solana.WithRPCEndpoint(solanaRPCEndpoint))
+
+	mintAddr := "DUSTawucrTsGU8hcqRdHDCbuYhCPADMLM2VcCb8VnFnQ"
+	tokenMeta, err := client.GetFungibleTokenMetadata(ctx, mintAddr)
+	require.NoError(t, err)
+	require.NotNil(t, tokenMeta)
+	require.EqualValues(t, "DUST Protocol", tokenMeta.Name)
+	require.EqualValues(t, "DUST", tokenMeta.Symbol)
+	require.EqualValues(t, uint8(9), tokenMeta.Decimals)
+	require.Empty(t, tokenMeta.ExternalURL)
+}
