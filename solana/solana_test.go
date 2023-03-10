@@ -114,6 +114,7 @@ func TestGetDeprecatedTokenMeta(t *testing.T) {
 
 	mintAddr := "So11111111111111111111111111111111111111112"
 	tokenMeta, err := client.GetFungibleTokenMetadata(ctx, mintAddr)
+	// utils.PrettyPrint(tokenMeta)
 	require.NoError(t, err)
 	require.NotNil(t, tokenMeta)
 	require.EqualValues(t, "Wrapped SOL", tokenMeta.Name)
