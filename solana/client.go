@@ -314,10 +314,28 @@ func (c *Client) GetTokenSupply(ctx context.Context, base58MintAddr string) (Bal
 func (c *Client) GetFungibleTokenMetadata(ctx context.Context, base58MintAddr string) (result *FungibleTokenMetadata, err error) {
 	// fallback to the deprecated metadata account if the given mint address has no on-chain metadata
 	defer func() {
-		if result == nil {
-			fmt.Printf("on-chain error: %v", err)
-			result, err = c.getDeprecatedTokenMetadata(ctx, base58MintAddr)
-			fmt.Println("using deprecated metadata")
+		if result == nil || err != nil || result.Name == "" || result.Symbol == "" || result.LogoURI == "" {
+			if depr, err := c.getDeprecatedTokenMetadata(ctx, base58MintAddr); err == nil {
+				if result == nil {
+					result = depr
+				} else {
+					if result.Name == "" {
+						result.Name = depr.Name
+					}
+					if result.Symbol == "" {
+						result.Symbol = depr.Symbol
+					}
+					if result.LogoURI == "" {
+						result.LogoURI = depr.LogoURI
+					}
+					if result.ExternalURL == "" {
+						result.ExternalURL = depr.ExternalURL
+					}
+					if result.Description == "" {
+						result.Description = depr.Description
+					}
+				}
+			}
 		}
 	}()
 
@@ -342,6 +360,10 @@ func (c *Client) GetFungibleTokenMetadata(ctx context.Context, base58MintAddr st
 		Symbol: md.Data.Symbol,
 	}
 
+	if sup, err := c.GetTokenSupply(ctx, base58MintAddr); err == nil {
+		result.Decimals = sup.Decimals
+	}
+
 	if md.Data.Uri != "" && strings.HasPrefix(md.Data.Uri, "http") {
 		mde, err := metadata.MetadataFromURI(md.Data.Uri)
 		if err != nil {
@@ -351,10 +373,6 @@ func (c *Client) GetFungibleTokenMetadata(ctx context.Context, base58MintAddr st
 		result.Description = mde.Description
 		result.LogoURI = mde.Image
 		result.ExternalURL = mde.ExternalURL
-
-		if sup, err := c.GetTokenSupply(ctx, base58MintAddr); err == nil {
-			result.Decimals = sup.Decimals
-		}
 	}
 
 	return result, nil
