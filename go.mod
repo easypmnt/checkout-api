@@ -3,6 +3,7 @@ module github.com/easypmnt/checkout-api
 go 1.20
 
 require (
+	github.com/dmitrymomot/go-env v1.0.2
 	github.com/everFinance/goar v1.5.2
 	github.com/google/go-querystring v1.1.0
 	github.com/gorilla/websocket v1.5.0

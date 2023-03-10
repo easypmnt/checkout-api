@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dmitrymomot/go-env"
 	"github.com/easypmnt/checkout-api/solana"
 	"github.com/easypmnt/checkout-api/utils"
 	"github.com/portto/solana-go-sdk/types"
@@ -13,8 +14,8 @@ import (
 )
 
 var (
-	solanaRPCEndpoint = "https://api.devnet.solana.com"
-	solanaWSSEndpoint = "wss://api.devnet.solana.com"
+	solanaRPCEndpoint = env.GetString("SOLANA_RPC_ENDPOINT", "https://api.devnet.solana.com")
+	solanaWSSEndpoint = env.GetString("SOLANA_WSS_ENDPOINT", "wss://api.devnet.solana.com")
 
 	wallet1, _ = types.AccountFromBase58("4JVyzx75j9s91TgwVqSPFN4pb2D8ACPNXUKKnNBvXuGukEzuFEg3sLqhPGwYe9RRbDnVoYHjz4bwQ5yUfyRZVGVU")
 	wallet2, _ = types.AccountFromBase58("2x3dkFDgZbq9kjRPRv8zzXzcpj8rZKLCTEgGj52KT7RUmkNy8gSaSDCP5vDhPkspAam6WPEiZxVUatA8nHSSSj79")
