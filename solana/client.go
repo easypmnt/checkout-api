@@ -149,6 +149,17 @@ func (c *Client) GetTokenBalance(ctx context.Context, base58Addr, base58MintAddr
 	return c.GetAtaBalance(ctx, ata.String())
 }
 
+// GetMinimumBalanceForRentExemption gets the minimum balance for rent exemption.
+// Returns the minimum balance in lamports or an error.
+func (c *Client) GetMinimumBalanceForRentExemption(ctx context.Context, size uint64) (uint64, error) {
+	mintAccountRent, err := c.rpcClient.GetMinimumBalanceForRentExemption(ctx, size)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get minimum balance for rent exemption: %w", err)
+	}
+
+	return mintAccountRent, nil
+}
+
 // GetTransactionStatus gets the transaction status.
 // Returns the transaction status or an error.
 func (c *Client) GetTransactionStatus(ctx context.Context, txhash string) (TransactionStatus, error) {

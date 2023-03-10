@@ -13,6 +13,7 @@ type (
 	SolanaClient interface {
 		GetLatestBlockhash(ctx context.Context) (string, error)
 		DoesTokenAccountExist(ctx context.Context, base58AtaAddr string) (bool, error)
+		GetMinimumBalanceForRentExemption(ctx context.Context, size uint64) (uint64, error)
 	}
 
 	// InstructionFunc is a function that returns a list of prepared instructions.

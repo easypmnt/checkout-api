@@ -1,7 +1,11 @@
 package utils
 
 import (
+	"fmt"
+	"io"
+	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -69,4 +73,45 @@ func GetFileTypeByURI(uri string) string {
 	}
 
 	return ""
+}
+
+// GetFileByPath returns the file bytes from the given path.
+// If the path is a URL, it will download the file and return the bytes.
+// If the path is a local file, it will read the file and return the bytes.
+func GetFileByPath(path string) ([]byte, error) {
+	if strings.Contains(path, "://") {
+		if !strings.HasPrefix(path, "http") {
+			return nil, fmt.Errorf("this url schema is not supported: %s", path)
+		}
+
+		b, err := DownloadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to download file from url: %w", err)
+		}
+
+		return b, nil
+	}
+
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file from local disk: %w", err)
+	}
+
+	return b, nil
+}
+
+// DownloadFile downloads the file from the given URL and returns the bytes.
+func DownloadFile(url string) ([]byte, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	return b, nil
 }
