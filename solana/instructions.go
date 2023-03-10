@@ -209,31 +209,31 @@ func TransferToken(params TransferTokenParam) InstructionFunc {
 	}
 }
 
-// MintFungibleParam defines the parameters for the MintFungible instruction.
-type MintFungibleParam struct {
-	Mint     common.PublicKey  // required; The token mint public key
-	MintTo   common.PublicKey  // required; The wallet to mint tokens to
-	FeePayer *common.PublicKey // optional; The wallet to pay the fees from; default is MintTo
+// CreateFungibleTokenParam defines the parameters for the CreateFungibleToken instruction.
+type CreateFungibleTokenParam struct {
+	Mint     string // required; The token mint public key.
+	Owner    string // required; The owner of the token.
+	FeePayer string // required; The wallet to pay the fees from.
 
-	Decimals    uint8  // required; The number of decimals the token has.
+	Decimals    uint8  // optional; The number of decimals the token has. Default is 0.
 	MetadataURI string // optional; URI of the token metadata; can be set later
 	TokenName   string // optional; Name of the token; used for the token metadata if MetadataURI is not set.
 	TokenSymbol string // optional; Symbol of the token; used for the token metadata if MetadataURI is not set.
 }
 
 // Validate checks that the required fields of the params are set.
-func (p MintFungibleParam) Validate() error {
-	if p.Mint == (common.PublicKey{}) {
-		return fmt.Errorf("field Mint is required")
+func (p CreateFungibleTokenParam) Validate() error {
+	if p.Mint == "" {
+		return fmt.Errorf("mint address is required")
 	}
-	if p.MintTo == (common.PublicKey{}) {
-		return fmt.Errorf("field MintTo is required")
+	if p.Owner == "" {
+		return fmt.Errorf("owner public key is required")
+	}
+	if p.FeePayer == "" {
+		return fmt.Errorf("invalid fee payer public key")
 	}
 	if p.MetadataURI != "" && !strings.HasPrefix(p.MetadataURI, "http") {
 		return fmt.Errorf("field MetadataURI must be a valid URI")
-	}
-	if p.FeePayer != nil && *p.FeePayer == (common.PublicKey{}) {
-		return fmt.Errorf("invalid fee payer public key")
 	}
 	if p.MetadataURI == "" && (p.TokenName == "" || p.TokenSymbol == "") {
 		return fmt.Errorf("field TokenName and TokenSymbol are required if MetadataURI is not set")
@@ -247,21 +247,23 @@ func (p MintFungibleParam) Validate() error {
 	return nil
 }
 
-// MintFungible creates instructions for minting fungible tokens or assets.
+// CreateFungibleToken creates instructions for minting fungible tokens or assets.
 // The token mint account must be created before calling this function.
 // To mint common fungible tokens, decimals must be greater than 0.
 // If decimals is 0, the token is fungible asset.
-func MintFungible(params MintFungibleParam) InstructionFunc {
+func CreateFungibleToken(params CreateFungibleTokenParam) InstructionFunc {
 	return func(ctx context.Context, c SolanaClient) ([]types.Instruction, error) {
 		if err := params.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid params: %w", err)
 		}
 
-		if params.FeePayer == nil {
-			params.FeePayer = &params.MintTo
-		}
+		var (
+			mintPubKey  = common.PublicKeyFromString(params.Mint)
+			ownerPubKey = common.PublicKeyFromString(params.Owner)
+			feePayer    = common.PublicKeyFromString(params.FeePayer)
+		)
 
-		metaPubkey, err := token_metadata.GetTokenMetaPubkey(params.Mint)
+		metaPubkey, err := token_metadata.GetTokenMetaPubkey(mintPubKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get token metadata pubkey: %w", err)
 		}
@@ -299,24 +301,24 @@ func MintFungible(params MintFungibleParam) InstructionFunc {
 
 		instructions := []types.Instruction{
 			system.CreateAccount(system.CreateAccountParam{
-				From:     *params.FeePayer,
-				New:      params.Mint,
+				From:     feePayer,
+				New:      mintPubKey,
 				Owner:    common.TokenProgramID,
 				Lamports: rentExemption,
 				Space:    token.MintAccountSize,
 			}),
 			token.InitializeMint2(token.InitializeMint2Param{
 				Decimals:   params.Decimals,
-				Mint:       params.Mint,
-				MintAuth:   params.MintTo,
-				FreezeAuth: utils.Pointer(params.MintTo),
+				Mint:       mintPubKey,
+				MintAuth:   ownerPubKey,
+				FreezeAuth: utils.Pointer(ownerPubKey),
 			}),
 			token_metadata.CreateMetadataAccountV2(token_metadata.CreateMetadataAccountV2Param{
 				Metadata:                metaPubkey,
-				Mint:                    params.Mint,
-				MintAuthority:           params.MintTo,
-				Payer:                   *params.FeePayer,
-				UpdateAuthority:         params.MintTo,
+				Mint:                    mintPubKey,
+				MintAuthority:           ownerPubKey,
+				Payer:                   feePayer,
+				UpdateAuthority:         ownerPubKey,
 				UpdateAuthorityIsSigner: true,
 				IsMutable:               true,
 				Data:                    metadataV2,
@@ -329,23 +331,22 @@ func MintFungible(params MintFungibleParam) InstructionFunc {
 
 // UpdateFungibleMetadataParams is the params for UpdateMetadata
 type UpdateFungibleMetadataParams struct {
-	Mint            common.PublicKey // required; The mint of the token
-	UpdateAuthority common.PublicKey // required; The update authority of the token
-	MetadataUri     *string          // optional; new metadata json uri
+	Mint            string // required; The mint address of the token
+	UpdateAuthority string // required; The update authority of the token
+	MetadataUri     string // optional; new metadata json uri
 }
 
 // Validate validates the params.
 func (p UpdateFungibleMetadataParams) Validate() error {
-	if p.Mint == (common.PublicKey{}) {
-		return fmt.Errorf("mint is required")
+	if p.Mint == "" {
+		return fmt.Errorf("mint address is required")
 	}
-	if p.UpdateAuthority == (common.PublicKey{}) {
+	if p.UpdateAuthority == "" {
 		return fmt.Errorf("update authority is required")
 	}
-	if p.MetadataUri != nil &&
-		(*p.MetadataUri == "" ||
-			(!strings.HasPrefix(*p.MetadataUri, "http://") &&
-				!strings.HasPrefix(*p.MetadataUri, "https://"))) {
+	if p.MetadataUri == "" ||
+		(!strings.HasPrefix(p.MetadataUri, "http://") &&
+			!strings.HasPrefix(p.MetadataUri, "https://")) {
 		return fmt.Errorf("metadata uri is invalid")
 	}
 	return nil
@@ -358,12 +359,17 @@ func UpdateFungibleMetadata(params UpdateFungibleMetadataParams) InstructionFunc
 			return nil, fmt.Errorf("validate update metadata: %w", err)
 		}
 
-		tokenMetadataPubkey, err := token_metadata.GetTokenMetaPubkey(params.Mint)
+		var (
+			mintPubKey = common.PublicKeyFromString(params.Mint)
+			authPubKey = common.PublicKeyFromString(params.UpdateAuthority)
+		)
+
+		tokenMetadataPubkey, err := token_metadata.GetTokenMetaPubkey(mintPubKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to derive token metadata pubkey: %w", err)
 		}
 
-		newMeta, err := metadata.MetadataFromURI(*params.MetadataUri)
+		newMeta, err := metadata.MetadataFromURI(params.MetadataUri)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get metadata from URI: %w", err)
 		}
@@ -371,15 +377,199 @@ func UpdateFungibleMetadata(params UpdateFungibleMetadataParams) InstructionFunc
 		instructions := []types.Instruction{
 			token_metadata.UpdateMetadataAccount(token_metadata.UpdateMetadataAccountParam{
 				MetadataAccount: tokenMetadataPubkey,
-				UpdateAuthority: params.UpdateAuthority,
+				UpdateAuthority: authPubKey,
 				Data: &token_metadata.Data{
 					Name:   newMeta.Name,
 					Symbol: newMeta.Symbol,
-					Uri:    *params.MetadataUri,
+					Uri:    params.MetadataUri,
 				},
 			}),
 		}
 
 		return instructions, nil
+	}
+}
+
+// MintFungibleTokenParams is the params for MintFungibleToken
+type MintFungibleTokenParams struct {
+	Funder    string // base58 encoded public key of the account that will fund the associated token account. Must be a signer.
+	Mint      string // base58 encoded public key of the mint
+	MintOwner string // base58 encoded public key of the mint owner
+	MintTo    string // base58 encoded public key of the account that will receive the minted tokens
+	Amount    uint64 // amount of tokens to mint in basis points, for example, 1 token with 9 decimals = 1000000000 bps.
+}
+
+// Validate validates the params.
+func (p MintFungibleTokenParams) Validate() error {
+	if p.Funder == "" {
+		return fmt.Errorf("funder public key is required")
+	}
+	if p.Mint == "" {
+		return fmt.Errorf("mint address is required")
+	}
+	if p.MintOwner == "" {
+		return fmt.Errorf("mint owner public key is required")
+	}
+	if p.MintTo == "" {
+		return fmt.Errorf("mintTo public key is required")
+	}
+	if p.Amount == 0 {
+		return fmt.Errorf("amount must be greater than 0")
+	}
+	return nil
+}
+
+// MintFungibleToken mints the fungible token.
+func MintFungibleToken(params MintFungibleTokenParams) InstructionFunc {
+	return func(ctx context.Context, c SolanaClient) ([]types.Instruction, error) {
+		if err := params.Validate(); err != nil {
+			return nil, fmt.Errorf("validate mint token: %w", err)
+		}
+
+		var (
+			funderPubKey = common.PublicKeyFromString(params.Funder)
+			ownerPubKey  = common.PublicKeyFromString(params.MintOwner)
+			mintPubKey   = common.PublicKeyFromString(params.Mint)
+			mintToPubKey = common.PublicKeyFromString(params.MintTo)
+		)
+
+		mintToAta, _, err := common.FindAssociatedTokenAddress(mintToPubKey, mintPubKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find associated token address: %w", err)
+		}
+
+		instructions := make([]types.Instruction, 0, 2)
+
+		if exists, _ := c.DoesTokenAccountExist(ctx, mintToAta.ToBase58()); !exists {
+			instructions = append(instructions,
+				associated_token_account.CreateAssociatedTokenAccount(
+					associated_token_account.CreateAssociatedTokenAccountParam{
+						Funder:                 funderPubKey,
+						Owner:                  mintToPubKey,
+						Mint:                   mintPubKey,
+						AssociatedTokenAccount: mintToAta,
+					},
+				),
+			)
+		}
+
+		instructions = append(instructions,
+			token.MintTo(token.MintToParam{
+				Mint:    mintPubKey,
+				To:      mintToAta,
+				Auth:    ownerPubKey,
+				Signers: []common.PublicKey{},
+				Amount:  params.Amount,
+			}),
+		)
+
+		return instructions, nil
+	}
+}
+
+// BurnTokenParams are the parameters for the BurnToken instruction.
+type BurnTokenParams struct {
+	Mint              string // base58 encoded public key of the mint
+	TokenAccountOwner string // base58 encoded public key of the token account owner
+	Amount            uint64
+}
+
+// Validate checks that the required fields of the params are set.
+func (p BurnTokenParams) Validate() error {
+	if p.Mint == "" {
+		return fmt.Errorf("mint is required")
+	}
+	if p.TokenAccountOwner == "" {
+		return fmt.Errorf("token account owner is required")
+	}
+	if p.Amount == 0 {
+		return fmt.Errorf("amount must be greater than 0")
+	}
+	return nil
+}
+
+// BurnToken burns the specified token.
+func BurnToken(params BurnTokenParams) InstructionFunc {
+	return func(ctx context.Context, c SolanaClient) ([]types.Instruction, error) {
+		if err := params.Validate(); err != nil {
+			return nil, fmt.Errorf("failed to validate params: %w", err)
+		}
+
+		var (
+			mintPubKey     = common.PublicKeyFromString(params.Mint)
+			ataOwnerPubKey = common.PublicKeyFromString(params.TokenAccountOwner)
+		)
+
+		ata, _, err := common.FindAssociatedTokenAddress(ataOwnerPubKey, mintPubKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find associated token address: %w", err)
+		}
+
+		return []types.Instruction{
+			token.Burn(token.BurnParam{
+				Account: ata,
+				Mint:    mintPubKey,
+				Auth:    ataOwnerPubKey,
+				Amount:  params.Amount,
+			}),
+		}, nil
+	}
+}
+
+// CloseTokenAccountParams are the parameters for the CloseTokenAccount instruction.
+type CloseTokenAccountParams struct {
+	Owner             string  // base58 encoded public key of the owner of the token account.
+	CloseTokenAccount *string // optional; base58 encoded public key of the token account to close; if not set, the associated token account will be derived from the owner and mint.
+	Mint              *string // optional; base58 encoded public key of the mint; if not set, the CloseTokenAccount must be set.
+	FeePayer          *string // optional;  base58 encoded public key of the fee payer of the transaction, if not set, the owner will be used; if set, the rent exemption balance will be transferred to it.
+}
+
+// Validate checks that the required fields of the params are set.
+func (p CloseTokenAccountParams) Validate() error {
+	if p.Owner == "" {
+		return fmt.Errorf("owner is required")
+	}
+	if p.CloseTokenAccount == nil && p.Mint == nil {
+		return fmt.Errorf("closeTokenAccount or mint is required")
+	}
+	if p.FeePayer != nil && *p.FeePayer == "" {
+		return fmt.Errorf("invalid fee payer public key")
+	}
+	return nil
+}
+
+// CloseTokenAccount closes the specified token account.
+func CloseTokenAccount(params CloseTokenAccountParams) InstructionFunc {
+	return func(ctx context.Context, c SolanaClient) ([]types.Instruction, error) {
+		if err := params.Validate(); err != nil {
+			return nil, fmt.Errorf("failed to validate params: %w", err)
+		}
+
+		var (
+			ownerPubKey = common.PublicKeyFromString(params.Owner)
+			ata         common.PublicKey
+			feePayer    common.PublicKey = ownerPubKey
+		)
+
+		if params.FeePayer != nil {
+			feePayer = common.PublicKeyFromString(*params.FeePayer)
+		}
+
+		if params.CloseTokenAccount == nil && params.Mint != nil {
+			mintPubKey := common.PublicKeyFromString(*params.Mint)
+			var err error
+			ata, _, err = common.FindAssociatedTokenAddress(ownerPubKey, mintPubKey)
+			if err != nil {
+				return nil, fmt.Errorf("failed to find associated token address: %w", err)
+			}
+		}
+
+		return []types.Instruction{
+			token.CloseAccount(token.CloseAccountParam{
+				Account: ata,
+				Auth:    ownerPubKey,
+				To:      feePayer,
+			}),
+		}, nil
 	}
 }
