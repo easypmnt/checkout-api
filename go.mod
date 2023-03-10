@@ -6,6 +6,7 @@ require (
 	github.com/dmitrymomot/go-env v1.0.2
 	github.com/everFinance/goar v1.5.2
 	github.com/google/go-querystring v1.1.0
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hibiken/asynq v0.24.0
 	github.com/mr-tron/base58 v1.2.0
@@ -33,7 +34,6 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/hamba/avro v1.5.6 // indirect
 	github.com/inconshreveable/log15 v0.0.0-20201112154412-8562bdadbbac // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
