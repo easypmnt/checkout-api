@@ -9,7 +9,6 @@ import (
 	"github.com/easypmnt/checkout-api/solana"
 	"github.com/easypmnt/checkout-api/utils"
 	"github.com/portto/solana-go-sdk/types"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -355,9 +354,14 @@ func TestFungibleToken(t *testing.T) {
 		txResp, err := client.GetOldestTransactionForWallet(ctx, referenceAcc.PublicKey.ToBase58(), "")
 		require.NoError(t, err)
 		require.NotNil(t, txResp)
-		assert.EqualValues(t, txResp.Meta.PreTokenBalances[0].UITokenAmount.Amount, "1000")
-		assert.EqualValues(t, txResp.Meta.PostTokenBalances[0].UITokenAmount.Amount, "990")
-		assert.EqualValues(t, txResp.Meta.PostTokenBalances[1].UITokenAmount.Amount, "10")
+		err = solana.CheckTokenTransferTransaction(
+			txResp.Meta,
+			txResp.Transaction,
+			mint.PublicKey.ToBase58(),
+			wallet1.PublicKey.ToBase58(),
+			10,
+		)
+		require.Error(t, err)
 		// utils.PrettyPrint(txResp)
 	})
 
