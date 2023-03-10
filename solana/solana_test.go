@@ -6,16 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dmitrymomot/go-env"
 	"github.com/easypmnt/checkout-api/solana"
 	"github.com/easypmnt/checkout-api/utils"
 	"github.com/portto/solana-go-sdk/types"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	solanaRPCEndpoint = "https://api.devnet.solana.com"
-	solanaWSSEndpoint = "wss://api.devnet.solana.com"
+	solanaRPCEndpoint = env.GetString("SOLANA_RPC_ENDPOINT", "https://api.devnet.solana.com")
+	solanaWSSEndpoint = env.GetString("SOLANA_WSS_ENDPOINT", "wss://api.devnet.solana.com")
 
 	wallet1, _ = types.AccountFromBase58("4JVyzx75j9s91TgwVqSPFN4pb2D8ACPNXUKKnNBvXuGukEzuFEg3sLqhPGwYe9RRbDnVoYHjz4bwQ5yUfyRZVGVU")
 	wallet2, _ = types.AccountFromBase58("2x3dkFDgZbq9kjRPRv8zzXzcpj8rZKLCTEgGj52KT7RUmkNy8gSaSDCP5vDhPkspAam6WPEiZxVUatA8nHSSSj79")
@@ -76,6 +76,10 @@ func TestSendSOL_WithReference(t *testing.T) {
 
 		// send transaction
 		txSig, err := client.SendTransaction(ctx, tx)
+		if err != nil {
+			// retry if transaction failed
+			txSig, err = client.SendTransaction(ctx, tx)
+		}
 		require.NoError(t, err)
 		require.NotNil(t, txSig)
 		fmt.Println("txSig", txSig)
@@ -355,9 +359,14 @@ func TestFungibleToken(t *testing.T) {
 		txResp, err := client.GetOldestTransactionForWallet(ctx, referenceAcc.PublicKey.ToBase58(), "")
 		require.NoError(t, err)
 		require.NotNil(t, txResp)
-		assert.EqualValues(t, txResp.Meta.PreTokenBalances[0].UITokenAmount.Amount, "1000")
-		assert.EqualValues(t, txResp.Meta.PostTokenBalances[0].UITokenAmount.Amount, "990")
-		assert.EqualValues(t, txResp.Meta.PostTokenBalances[1].UITokenAmount.Amount, "10")
+		err = solana.CheckTokenTransferTransaction(
+			txResp.Meta,
+			txResp.Transaction,
+			mint.PublicKey.ToBase58(),
+			wallet1.PublicKey.ToBase58(),
+			10,
+		)
+		require.NoError(t, err)
 		// utils.PrettyPrint(txResp)
 	})
 
