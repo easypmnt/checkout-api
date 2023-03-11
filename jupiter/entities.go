@@ -65,8 +65,8 @@ type QuoteParams struct {
 	Amount     uint64 `url:"amount"`     // required
 
 	SwapMode            string `url:"swapMode,omitempty"` // Swap mode, default is ExactIn; Available values : ExactIn, ExactOut.
-	SlippageBps         int64  `url:"slippageBps,omitempty"`
-	FeeBps              int64  `url:"feeBps,omitempty"`              // Fee BPS (only pass in if you want to charge a fee on this swap)
+	SlippageBps         uint64 `url:"slippageBps,omitempty"`
+	FeeBps              uint64 `url:"feeBps,omitempty"`              // Fee BPS (only pass in if you want to charge a fee on this swap)
 	OnlyDirectRoutes    bool   `url:"onlyDirectRoutes,omitempty"`    // Only return direct routes (no hoppings and split trade)
 	AsLegacyTransaction bool   `url:"asLegacyTransaction,omitempty"` // Only return routes that can be done in a single legacy transaction. (Routes might be limited)
 	UserPublicKey       string `url:"userPublicKey,omitempty"`       // Public key of the user (only pass in if you want deposit and fee being returned, might slow down query)
@@ -139,4 +139,15 @@ func (r *IndexedRoutesMap) GetRoutesForMint(mint string) []string {
 	}
 
 	return result
+}
+
+// BestSwapParams contains the parameters for the best swap route.
+type BestSwapParams struct {
+	UserPublicKey        string // user base58 encoded public key
+	DestinationPublicKey string // destination base58 encoded public key (optional)
+	FeeAmount            uint64 // fee amount in token basis points (optional)
+	FeeAccount           string // fee token account for the platform fee (only pass in if you set a FeeAmount).
+	InputMint            string // input mint
+	OutputMint           string // output mint
+	Amount               uint64 // amount of output token
 }
