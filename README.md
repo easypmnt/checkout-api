@@ -7,13 +7,10 @@ Payment API server based on the [Solana blockchain](https://solana.com).
 
 ## Features
 
-- [ ] Create checkout transaction with a single API call.
-- [ ] Track transaction status updates.
-- [ ] Webhooks for transaction status updates.
-- [ ] Ability to use as standalone API server or as a library.
-- [ ] Client credentials oauth2 authorization flow.
-- [ ] Support for multiple currencies.
-- [ ] Automatic conversion of currencies (using [Jupiter](https://jup.ag)).
-- [ ] Selling NFTs and other tokens on the Solana blockchain (SPL).
-- [ ] Selling physical goods with a custom checkout flow.
-- [ ] Loyal program for customers to earn rewards for purchases (NFTs, loyalty points, etc).
+- [x] Create checkout transaction with a single API call.
+- [x] Track transaction status updates.
+- [x] Webhooks for transaction status updates.
+- [x] Ability to use as standalone API server or as a library.
+- [x] Client credentials oauth2 authorization flow.
+- [x] Support for authomated token swaps, if customer pays with a token that is not supported by the merchant (using [Jupiter](https://jup.ag)).
+- [x] Loyal program for customers to earn bonuses for purchases and redeem them for discounts.
