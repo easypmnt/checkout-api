@@ -105,8 +105,7 @@ type Payment struct {
 	ID          uuid.UUID      `json:"id"`
 	ExternalID  sql.NullString `json:"external_id"`
 	Currency    string         `json:"currency"`
-	Amount      int64          `json:"amount"`
-	Destination string         `json:"destination"`
+	TotalAmount int64          `json:"total_amount"`
 	Status      PaymentStatus  `json:"status"`
 	Message     sql.NullString `json:"message"`
 	Memo        sql.NullString `json:"memo"`
@@ -116,17 +115,25 @@ type Payment struct {
 }
 
 type PaymentDestination struct {
-	PaymentID   uuid.UUID `json:"payment_id"`
-	Destination string    `json:"destination"`
-	Amount      int64     `json:"amount"`
+	PaymentID          uuid.UUID     `json:"payment_id"`
+	Destination        string        `json:"destination"`
+	Amount             sql.NullInt64 `json:"amount"`
+	Percentage         sql.NullInt16 `json:"percentage"`
+	TotalAmount        int64         `json:"total_amount"`
+	DiscountAmount     int64         `json:"discount_amount"`
+	ApplyBonus         bool          `json:"apply_bonus"`
+	MaxBonusAmount     int64         `json:"max_bonus_amount"`
+	MaxBonusPercentage int16         `json:"max_bonus_percentage"`
 }
 
 type Transaction struct {
-	ID          uuid.UUID         `json:"id"`
-	PaymentID   uuid.UUID         `json:"payment_id"`
-	Reference   string            `json:"reference"`
-	TxSignature sql.NullString    `json:"tx_signature"`
-	Status      TransactionStatus `json:"status"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   sql.NullTime      `json:"updated_at"`
+	ID             uuid.UUID         `json:"id"`
+	PaymentID      uuid.UUID         `json:"payment_id"`
+	Reference      string            `json:"reference"`
+	Amount         int64             `json:"amount"`
+	DiscountAmount int64             `json:"discount_amount"`
+	TxSignature    sql.NullString    `json:"tx_signature"`
+	Status         TransactionStatus `json:"status"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      sql.NullTime      `json:"updated_at"`
 }

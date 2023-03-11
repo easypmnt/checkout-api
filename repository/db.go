@@ -33,6 +33,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createTransactionStmt, err = db.PrepareContext(ctx, createTransaction); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateTransaction: %w", err)
 	}
+	if q.deletePaymentDestinationsStmt, err = db.PrepareContext(ctx, deletePaymentDestinations); err != nil {
+		return nil, fmt.Errorf("error preparing query DeletePaymentDestinations: %w", err)
+	}
 	if q.getPaymentStmt, err = db.PrepareContext(ctx, getPayment); err != nil {
 		return nil, fmt.Errorf("error preparing query GetPayment: %w", err)
 	}
@@ -75,6 +78,11 @@ func (q *Queries) Close() error {
 	if q.createTransactionStmt != nil {
 		if cerr := q.createTransactionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createTransactionStmt: %w", cerr)
+		}
+	}
+	if q.deletePaymentDestinationsStmt != nil {
+		if cerr := q.deletePaymentDestinationsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deletePaymentDestinationsStmt: %w", cerr)
 		}
 	}
 	if q.getPaymentStmt != nil {
@@ -159,6 +167,7 @@ type Queries struct {
 	createPaymentStmt                *sql.Stmt
 	createPaymentDestinationStmt     *sql.Stmt
 	createTransactionStmt            *sql.Stmt
+	deletePaymentDestinationsStmt    *sql.Stmt
 	getPaymentStmt                   *sql.Stmt
 	getPaymentByExternalIDStmt       *sql.Stmt
 	getPaymentDestinationsStmt       *sql.Stmt
@@ -176,6 +185,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createPaymentStmt:                q.createPaymentStmt,
 		createPaymentDestinationStmt:     q.createPaymentDestinationStmt,
 		createTransactionStmt:            q.createTransactionStmt,
+		deletePaymentDestinationsStmt:    q.deletePaymentDestinationsStmt,
 		getPaymentStmt:                   q.getPaymentStmt,
 		getPaymentByExternalIDStmt:       q.getPaymentByExternalIDStmt,
 		getPaymentDestinationsStmt:       q.getPaymentDestinationsStmt,

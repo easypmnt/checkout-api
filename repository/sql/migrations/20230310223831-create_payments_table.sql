@@ -15,8 +15,7 @@ CREATE TABLE IF NOT EXISTS payments (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     external_id VARCHAR DEFAULT NULL,
     currency VARCHAR NOT NULL,
-    amount BIGINT NOT NULL,
-    destination VARCHAR NOT NULL,
+    total_amount BIGINT NOT NULL,
     status payment_status NOT NULL DEFAULT 'new'::payment_status,
     message VARCHAR DEFAULT NULL,
     memo VARCHAR DEFAULT NULL,
@@ -31,7 +30,13 @@ UPDATE ON payments FOR EACH ROW EXECUTE PROCEDURE payments_update_updated_at_col
 CREATE TABLE IF NOT EXISTS payment_destinations (
     payment_id uuid NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
     destination VARCHAR NOT NULL,
-    amount BIGINT NOT NULL,
+    amount BIGINT DEFAULT NULL,
+    percentage SMALLINT DEFAULT NULL,
+    total_amount BIGINT NOT NULL DEFAULT 0,
+    discount_amount BIGINT NOT NULL DEFAULT 0,
+    apply_bonus BOOLEAN NOT NULL DEFAULT FALSE,
+    max_bonus_amount BIGINT NOT NULL DEFAULT 0,
+    max_bonus_percentage SMALLINT NOT NULL DEFAULT 0,
     PRIMARY KEY (payment_id, destination)
 );
 -- +migrate StatementEnd

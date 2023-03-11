@@ -11,10 +11,12 @@ $$ LANGUAGE 'plpgsql';
 
 CREATE TYPE transaction_status AS ENUM ('pending', 'completed', 'failed');
 
-CREATE TABLE IF NOT EXISTS transactions (
+CREATE TABLE IF NOT EXISTS transactions ( 
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     payment_id uuid NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
     reference VARCHAR NOT NULL,
+    amount BIGINT NOT NULL,
+    discount_amount BIGINT NOT NULL DEFAULT 0,
     tx_signature VARCHAR DEFAULT NULL,
     status transaction_status NOT NULL DEFAULT 'pending'::transaction_status,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
