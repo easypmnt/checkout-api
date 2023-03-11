@@ -11,6 +11,7 @@ import (
 	"github.com/easypmnt/checkout-api/solana"
 	"github.com/easypmnt/checkout-api/utils"
 	"github.com/google/uuid"
+	"github.com/portto/solana-go-sdk/types"
 )
 
 type (
@@ -37,7 +38,9 @@ type (
 		ApplyBonus    bool   // ApplyBonus is a flag that indicates whether customer can apply bonus to the payment or not.
 		MaxBonus      uint64 // MaxBonus is the maximum amount of bonus that can be applied to the payment.
 		MaxBonusPerc  uint16 // MaxBonusPerc is the maximum percentage of bonus that can be applied to the payment.
+		BonusRate     uint64 // BonusRate is the bonus rate that will be accrued to the payer's bonus account.
 		BonusMintAddr string // BonusMintAddr is the base58 encoded public key of the mint address of the bonus token.
+		BonusMintAuth string // BonusMintAuth is the base58 encoded public key of the mint authority of the bonus token.
 	}
 
 	paymentRepository interface {
@@ -55,6 +58,9 @@ type (
 		GetSOLBalance(ctx context.Context, base58Addr string) (solana.Balance, error)
 		GetTokenBalance(ctx context.Context, base58Addr, base58MintAddr string) (solana.Balance, error)
 		GetTokenSupply(ctx context.Context, base58MintAddr string) (solana.Balance, error)
+		GetLatestBlockhash(ctx context.Context) (string, error)
+		DoesTokenAccountExist(ctx context.Context, base58AtaAddr string) (bool, error)
+		GetMinimumBalanceForRentExemption(ctx context.Context, size uint64) (uint64, error)
 	}
 
 	jupiterClient interface {
@@ -67,6 +73,11 @@ func NewService(repo paymentRepository, sol solanaClient, jup jupiterClient, opt
 	s := &Service{repo: repo, solClient: sol, jupClient: jup}
 	for _, opt := range opts {
 		opt(s)
+	}
+	if s.defaultMerchantSettings.ApplyBonus {
+		if (s.defaultMerchantSettings.MaxBonus == 0 && s.defaultMerchantSettings.MaxBonusPerc == 0) || s.defaultMerchantSettings.BonusMintAddr == "" || s.defaultMerchantSettings.BonusMintAuth == "" {
+			s.defaultMerchantSettings.ApplyBonus = false
+		}
 	}
 	return s
 }
@@ -303,7 +314,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 	}
 
 	var bonusAmount int64
-	if arg.ApplyBonus {
+	if arg.ApplyBonus && s.defaultMerchantSettings.ApplyBonus {
 		// Check if customer has bonus balance.
 		bonusBalance, _ := s.solClient.GetTokenBalance(ctx, arg.Base58Addr, s.defaultMerchantSettings.BonusMintAddr)
 		payment, bonusAmount, err = s.recalculatePaymentWithBonus(ctx, payment, bonusBalance)
@@ -324,7 +335,104 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		}
 	}
 
-	return "", nil
+	txBuilder := solana.NewTransactionBuilder(s.solClient).SetFeePayer(arg.Base58Addr)
+
+	if arg.Currency != payment.Payment.Currency {
+		// Convert payment amount to the currency of the merchant.
+		jupTx, err := s.jupClient.BestSwap(jupiter.BestSwapParams{
+			UserPublicKey: arg.Base58Addr,
+			InputMint:     arg.Currency,
+			OutputMint:    payment.Payment.Currency,
+			Amount:        uint64(payment.Payment.TotalAmount - bonusAmount),
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to get best swap transaction: %w", err)
+		}
+		jtx, err := solana.DecodeTransaction(jupTx)
+		if err != nil {
+			return "", fmt.Errorf("failed to decode jupiter transaction: %w", err)
+		}
+		txBuilder = txBuilder.AddRawInstructionsToBeginning(jtx.Message.DecompileInstructions()...)
+	}
+
+	referenceAcc := types.NewAccount()
+
+	// Transfer payment amount to the merchants.
+	if payment.Payment.Currency == "SOL" || payment.Payment.Currency == defaultCurrencies["SOL"] {
+		for _, dest := range payment.Destinations {
+			txBuilder = txBuilder.AddInstruction(solana.TransferSOL(solana.TransferSOLParams{
+				Sender:    arg.Base58Addr,
+				Recipient: dest.Destination,
+				Reference: referenceAcc.PublicKey.ToBase58(),
+				Amount:    uint64(dest.TotalAmount),
+			}))
+		}
+	} else {
+		for _, dest := range payment.Destinations {
+			txBuilder = txBuilder.AddInstruction(solana.TransferToken(solana.TransferTokenParam{
+				Sender:    arg.Base58Addr,
+				Recipient: dest.Destination,
+				Mint:      payment.Payment.Currency,
+				Reference: referenceAcc.PublicKey.ToBase58(),
+				Amount:    uint64(dest.TotalAmount),
+			}))
+		}
+	}
+
+	// Mint bonus to the customer.
+	if s.defaultMerchantSettings.ApplyBonus {
+		amount := (payment.Payment.TotalAmount - bonusAmount) / int64(s.defaultMerchantSettings.BonusRate)
+		if amount > 0 {
+			authAcc, err := types.AccountFromBase58(s.defaultMerchantSettings.BonusMintAuth)
+			if err != nil {
+				return "", fmt.Errorf("failed to decode bonus mint auth account: %w", err)
+			}
+			txBuilder = txBuilder.AddInstruction(solana.MintFungibleToken(solana.MintFungibleTokenParams{
+				Funder:    arg.Base58Addr,
+				Mint:      s.defaultMerchantSettings.BonusMintAddr,
+				MintOwner: authAcc.PublicKey.ToBase58(),
+				MintTo:    arg.Base58Addr,
+				Amount:    uint64(amount),
+			})).AddSigner(authAcc)
+		}
+	}
+
+	base64Tx, err := txBuilder.Build(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to build transaction: %w", err)
+	}
+
+	// Create transaction in the database.
+	if _, err := s.repo.CreateTransactionWithCallback(ctx, repository.CreateTransactionWithCallbackParams{
+		Transaction: repository.CreateTransactionParams{
+			PaymentID:      arg.PaymentID,
+			Reference:      referenceAcc.PublicKey.ToBase58(),
+			Amount:         payment.Payment.TotalAmount - bonusAmount,
+			DiscountAmount: bonusAmount,
+			Status:         repository.TransactionStatusPending,
+		},
+		Destinations: func(destinations []repository.PaymentDestination) []repository.CreatePaymentDestinationParams {
+			result := make([]repository.CreatePaymentDestinationParams, 0, len(destinations))
+			for _, dest := range destinations {
+				result = append(result, repository.CreatePaymentDestinationParams{
+					PaymentID:          payment.Payment.ID,
+					Destination:        dest.Destination,
+					Amount:             dest.Amount,
+					Percentage:         dest.Percentage,
+					TotalAmount:        dest.TotalAmount,
+					DiscountAmount:     dest.DiscountAmount,
+					ApplyBonus:         dest.ApplyBonus,
+					MaxBonusAmount:     dest.MaxBonusAmount,
+					MaxBonusPercentage: dest.MaxBonusPercentage,
+				})
+			}
+			return result
+		}(payment.Destinations),
+	}); err != nil {
+		return "", fmt.Errorf("failed to create transaction: %w", err)
+	}
+
+	return base64Tx, nil
 }
 
 // Check if customer has enough balance.
@@ -353,7 +461,7 @@ func (s *Service) checkBalance(ctx context.Context, base58Addr, currency string,
 // recalculatePaymentWithBonus recalculates the payment amount with the given bonus.
 // It returns an error if any.
 func (s *Service) recalculatePaymentWithBonus(ctx context.Context, payment repository.PaymentInfo, bonus solana.Balance) (repository.PaymentInfo, int64, error) {
-	if len(payment.Destinations) == 0 {
+	if len(payment.Destinations) == 0 || s.defaultMerchantSettings.BonusMintAddr == "" {
 		return repository.PaymentInfo{}, 0, fmt.Errorf("no payment destinations found")
 	}
 

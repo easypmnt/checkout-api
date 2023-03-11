@@ -16,19 +16,6 @@ func WithSolanaPayBaseURI(baseURI string) ServiceOption {
 	}
 }
 
-// WithDefaultMerchantSettings sets the default merchant settings.
-func WithDefaultMerchantSettings(base58Addr string, applyBonus bool, maxBonus uint64, maxBonusPerc uint16, mint string) ServiceOption {
-	return func(s *Service) {
-		s.defaultMerchantSettings = MerchantSettings{
-			WalletAddress: base58Addr,
-			ApplyBonus:    applyBonus,
-			MaxBonus:      maxBonus,
-			MaxBonusPerc:  maxBonusPerc,
-			BonusMintAddr: mint,
-		}
-	}
-}
-
 // WithDefaultMerchantWalletAddress sets the default merchant wallet address.
 func WithDefaultMerchantWalletAddress(base58Addr string) ServiceOption {
 	return func(s *Service) {
@@ -61,5 +48,19 @@ func WithDefaultMerchantMaxBonusPerc(maxBonusPerc uint16) ServiceOption {
 func WithDefaultMerchantBonusMintAddr(mint string) ServiceOption {
 	return func(s *Service) {
 		s.defaultMerchantSettings.BonusMintAddr = mint
+	}
+}
+
+// WithDefaultMerchantBonusMintAuthority sets the default merchant bonus mint authority base58 public key.
+func WithDefaultMerchantBonusMintAuthority(authorityAddr string) ServiceOption {
+	return func(s *Service) {
+		s.defaultMerchantSettings.BonusMintAuth = authorityAddr
+	}
+}
+
+// WithDefaultMerchantBonusRate sets the default merchant bonus rate.
+func WithDefaultMerchantBonusRate(bonusRate uint64) ServiceOption {
+	return func(s *Service) {
+		s.defaultMerchantSettings.BonusRate = bonusRate
 	}
 }
