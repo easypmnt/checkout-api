@@ -7,7 +7,7 @@ Payment API server based on the [Solana blockchain](https://solana.com).
 
 ## Features
 
-- [x] Create checkout transaction with a single API call.
+- [x] Supports two payment flows: `classic` (via solana wallet adapter button) and `QR code`.
 - [x] Track transaction status updates.
 - [x] Webhooks for transaction status updates.
 - [x] Ability to use as standalone API server or as a library.
