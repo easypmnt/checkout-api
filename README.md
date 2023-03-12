@@ -8,9 +8,8 @@ Payment API server based on the [Solana blockchain](https://solana.com).
 ## Features
 
 - [x] Supports two payment flows: `classic` (via solana wallet adapter button) and `QR code`.
-- [x] Track transaction status updates.
-- [x] Webhooks for transaction status updates.
-- [x] Ability to use as standalone API server or as a library.
-- [x] Client credentials oauth2 authorization flow.
-- [x] Support for authomated token swaps, if customer pays with a token that is not supported by the merchant (using [Jupiter](https://jup.ag)).
-- [x] Loyal program for customers to earn bonuses for purchases and redeem them for discounts.
+- [x] Webhooks for transaction status updates on the client's server.
+- [x] Ability to use as a standalone API server or as a library.
+- [x] Oauth2 authorization for client.
+- [x] Support for authomated token swaps, if a customer pays with a token that the merchant does not support (using [Jupiter](https://jup.ag)).
+- [x] A loyalty program for customers to earn bonuses for purchases and redeem them for discounts.
