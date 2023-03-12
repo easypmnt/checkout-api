@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/dmitrymomot/go-env"
+	"github.com/easypmnt/checkout-api/internal/utils"
 	"github.com/easypmnt/checkout-api/solana"
-	"github.com/easypmnt/checkout-api/utils"
 	"github.com/portto/solana-go-sdk/types"
 	"github.com/stretchr/testify/require"
 )
@@ -96,7 +96,7 @@ func TestSendSOL_WithReference(t *testing.T) {
 	})
 
 	t.Run("verify transaction by reference", func(t *testing.T) {
-		txResp, err := client.GetOldestTransactionForWallet(ctx, referenceAcc.PublicKey.ToBase58(), "")
+		_, txResp, err := client.GetOldestTransactionForWallet(ctx, referenceAcc.PublicKey.ToBase58(), "")
 		require.NoError(t, err)
 		require.NotNil(t, txResp)
 		require.True(t, txResp.Meta.PreBalances[0] > txResp.Meta.PostBalances[0])
@@ -356,7 +356,7 @@ func TestFungibleToken(t *testing.T) {
 	})
 
 	t.Run("verify transaction by reference", func(t *testing.T) {
-		txResp, err := client.GetOldestTransactionForWallet(ctx, referenceAcc.PublicKey.ToBase58(), "")
+		_, txResp, err := client.GetOldestTransactionForWallet(ctx, referenceAcc.PublicKey.ToBase58(), "")
 		require.NoError(t, err)
 		require.NotNil(t, txResp)
 		err = solana.CheckTokenTransferTransaction(

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/easypmnt/checkout-api/arweave"
-	"github.com/easypmnt/checkout-api/utils"
+	"github.com/easypmnt/checkout-api/internal/utils"
 	"github.com/stretchr/testify/require"
 )
 

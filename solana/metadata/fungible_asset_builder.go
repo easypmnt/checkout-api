@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/easypmnt/checkout-api/utils"
+	"github.com/easypmnt/checkout-api/internal/utils"
 )
 
 // FungibleAssetMetadataBuilder is a builder to build fungible asset metadata

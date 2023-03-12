@@ -3,7 +3,7 @@ package solana
 import (
 	"context"
 
-	"github.com/easypmnt/checkout-api/utils"
+	"github.com/easypmnt/checkout-api/internal/utils"
 	"github.com/portto/solana-go-sdk/rpc"
 	"github.com/portto/solana-go-sdk/types"
 )

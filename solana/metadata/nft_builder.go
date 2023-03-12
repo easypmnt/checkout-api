@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/easypmnt/checkout-api/utils"
+	"github.com/easypmnt/checkout-api/internal/utils"
 )
 
 // NFTMetadataBuilder is a builder to build non-fungible asset metadata

@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/easypmnt/checkout-api/utils"
+	"github.com/easypmnt/checkout-api/internal/utils"
 )
 
 // SignPayload signs a payload using a secret key and returns the signature as a base64 encoded string

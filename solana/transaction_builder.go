@@ -3,7 +3,7 @@ package solana
 import (
 	"context"
 
-	"github.com/easypmnt/checkout-api/utils"
+	"github.com/easypmnt/checkout-api/internal/utils"
 	"github.com/pkg/errors"
 	"github.com/portto/solana-go-sdk/common"
 	"github.com/portto/solana-go-sdk/types"
@@ -12,27 +12,43 @@ import (
 type (
 	// TransactionBuilder is a builder for Transaction.
 	TransactionBuilder struct {
-		client        SolanaClient
-		instructions  []InstructionFunc
-		signers       []types.Account
-		feePayer      *common.PublicKey // transaction fee payer
-		addressLookup []types.AddressLookupTableAccount
+		client                SolanaClient
+		instructions          []InstructionFunc
+		rawInstructionsBefore []types.Instruction
+		rawInstructionsAfter  []types.Instruction
+		signers               []types.Account
+		feePayer              *common.PublicKey // transaction fee payer
+		addressLookup         []types.AddressLookupTableAccount
 	}
 )
 
 // NewTransactionBuilder creates a new TransactionBuilder instance.
 func NewTransactionBuilder(client SolanaClient) *TransactionBuilder {
 	return &TransactionBuilder{
-		client:        client,
-		instructions:  []InstructionFunc{},
-		signers:       []types.Account{},
-		addressLookup: []types.AddressLookupTableAccount{},
+		client:                client,
+		instructions:          []InstructionFunc{},
+		rawInstructionsBefore: []types.Instruction{},
+		rawInstructionsAfter:  []types.Instruction{},
+		signers:               []types.Account{},
+		addressLookup:         []types.AddressLookupTableAccount{},
 	}
 }
 
 // AddInstruction adds a new instruction to the transaction.
 func (b *TransactionBuilder) AddInstruction(instruction InstructionFunc) *TransactionBuilder {
 	b.instructions = append(b.instructions, instruction)
+	return b
+}
+
+// AddRawInstructionsToBeginning adds raw instructions to the beginning of the transaction.
+func (b *TransactionBuilder) AddRawInstructionsToBeginning(instructions ...types.Instruction) *TransactionBuilder {
+	b.rawInstructionsBefore = append(b.rawInstructionsBefore, instructions...)
+	return b
+}
+
+// AddRawInstructionsToEnd adds raw instructions to the end of the transaction.
+func (b *TransactionBuilder) AddRawInstructionsToEnd(instructions ...types.Instruction) *TransactionBuilder {
+	b.rawInstructionsAfter = append(b.rawInstructionsAfter, instructions...)
 	return b
 }
 
@@ -113,12 +129,18 @@ func (b *TransactionBuilder) Validate() error {
 // It returns a list of prepared instructions or an error.
 func (b *TransactionBuilder) PrepareInstructions(ctx context.Context) ([]types.Instruction, error) {
 	instructions := []types.Instruction{}
+	if len(b.rawInstructionsBefore) > 0 {
+		instructions = append(instructions, b.rawInstructionsBefore...)
+	}
 	for _, instruction := range b.instructions {
 		ins, err := instruction(ctx, b.client)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to prepare instructions")
 		}
 		instructions = append(instructions, ins...)
+	}
+	if len(b.rawInstructionsAfter) > 0 {
+		instructions = append(instructions, b.rawInstructionsAfter...)
 	}
 	return instructions, nil
 }

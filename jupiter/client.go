@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/easypmnt/checkout-api/utils"
+	"github.com/easypmnt/checkout-api/internal/utils"
 )
 
 const (
@@ -212,4 +212,41 @@ func (c *Client) RoutesMap(onlyDirectRoutes bool) (IndexedRoutesMap, error) {
 	}
 
 	return routesMap, nil
+}
+
+// BestSwap returns the ebase64 encoded transaction for the best swap route
+// for a given input mint, output mint and amount.
+// Default swap mode: ExactOut, so the amount is the amount of output token.
+// Default wrap unwrap sol: true
+func (c *Client) BestSwap(params BestSwapParams) (string, error) {
+	routes, err := c.Quote(QuoteParams{
+		InputMint:        params.InputMint,
+		OutputMint:       params.OutputMint,
+		Amount:           params.Amount,
+		FeeBps:           params.FeeAmount,
+		SwapMode:         SwapModeExactOut,
+		OnlyDirectRoutes: false,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	route, err := routes.GetBestRoute()
+	if err != nil {
+		return "", err
+	}
+
+	swap, err := c.Swap(SwapParams{
+		Route:               route,
+		UserPublicKey:       params.UserPublicKey,
+		DestinationWallet:   params.DestinationPublicKey,
+		FeeAccount:          params.FeeAccount,
+		WrapUnwrapSol:       utils.Pointer(true),
+		AsLegacyTransaction: utils.Pointer(true),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return swap, nil
 }
