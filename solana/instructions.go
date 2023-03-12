@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/easypmnt/checkout-api/internal/utils"
 	"github.com/easypmnt/checkout-api/solana/metadata"
-	"github.com/easypmnt/checkout-api/utils"
 	"github.com/pkg/errors"
 	"github.com/portto/solana-go-sdk/common"
 	"github.com/portto/solana-go-sdk/program/associated_token_account"

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/dmitrymomot/go-env"
+	"github.com/easypmnt/checkout-api/internal/utils"
 	"github.com/easypmnt/checkout-api/solana"
-	"github.com/easypmnt/checkout-api/utils"
 	"github.com/portto/solana-go-sdk/types"
 	"github.com/stretchr/testify/require"
 )

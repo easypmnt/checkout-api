@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/easypmnt/checkout-api/internal/utils"
 	"github.com/easypmnt/checkout-api/jupiter"
 	"github.com/easypmnt/checkout-api/repository"
 	"github.com/easypmnt/checkout-api/solana"
-	"github.com/easypmnt/checkout-api/utils"
 	"github.com/google/uuid"
 	"github.com/portto/solana-go-sdk/types"
 )
@@ -313,13 +313,45 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		return "", fmt.Errorf("payment status is not new")
 	}
 
-	var bonusAmount int64
+	var (
+		referenceAcc = types.NewAccount()
+		txBuilder    = solana.NewTransactionBuilder(s.solClient).SetFeePayer(arg.Base58Addr)
+		bonusAmount  int64
+	)
+
 	if arg.ApplyBonus && s.defaultMerchantSettings.ApplyBonus {
 		// Check if customer has bonus balance.
 		bonusBalance, _ := s.solClient.GetTokenBalance(ctx, arg.Base58Addr, s.defaultMerchantSettings.BonusMintAddr)
+
+		// Recalculate payment amounts with bonus.
 		payment, bonusAmount, err = s.recalculatePaymentWithBonus(ctx, payment, bonusBalance)
 		if err != nil {
 			return "", fmt.Errorf("failed to recalculate payment with bonus: %w", err)
+		}
+
+		// Burn applied bonus amount.
+		if bonusAmount > 0 {
+			txBuilder = txBuilder.AddInstruction(solana.BurnToken(solana.BurnTokenParams{
+				Mint:              s.defaultMerchantSettings.BonusMintAddr,
+				TokenAccountOwner: arg.Base58Addr,
+				Amount:            uint64(bonusAmount),
+			}))
+		}
+
+		// Accrue bonus tokens for the current payment.
+		amount := (payment.Payment.TotalAmount - bonusAmount) / int64(s.defaultMerchantSettings.BonusRate)
+		if amount > 0 {
+			authAcc, err := types.AccountFromBase58(s.defaultMerchantSettings.BonusMintAuth)
+			if err != nil {
+				return "", fmt.Errorf("failed to decode bonus mint auth account: %w", err)
+			}
+			txBuilder = txBuilder.AddInstruction(solana.MintFungibleToken(solana.MintFungibleTokenParams{
+				Funder:    arg.Base58Addr,
+				Mint:      s.defaultMerchantSettings.BonusMintAddr,
+				MintOwner: authAcc.PublicKey.ToBase58(),
+				MintTo:    arg.Base58Addr,
+				Amount:    uint64(amount),
+			})).AddSigner(authAcc)
 		}
 	}
 
@@ -335,10 +367,8 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		}
 	}
 
-	txBuilder := solana.NewTransactionBuilder(s.solClient).SetFeePayer(arg.Base58Addr)
-
+	// Convert payment amount to the currency of the merchant.
 	if arg.Currency != payment.Payment.Currency {
-		// Convert payment amount to the currency of the merchant.
 		jupTx, err := s.jupClient.BestSwap(jupiter.BestSwapParams{
 			UserPublicKey: arg.Base58Addr,
 			InputMint:     arg.Currency,
@@ -354,8 +384,6 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		}
 		txBuilder = txBuilder.AddRawInstructionsToBeginning(jtx.Message.DecompileInstructions()...)
 	}
-
-	referenceAcc := types.NewAccount()
 
 	// Transfer payment amount to the merchants.
 	if payment.Payment.Currency == "SOL" || payment.Payment.Currency == defaultCurrencies["SOL"] {
@@ -379,8 +407,8 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		}
 	}
 
-	// Mint bonus to the customer.
-	if s.defaultMerchantSettings.ApplyBonus {
+	// Accrue bonus tokens for the current payment.
+	if arg.ApplyBonus && s.defaultMerchantSettings.ApplyBonus {
 		amount := (payment.Payment.TotalAmount - bonusAmount) / int64(s.defaultMerchantSettings.BonusRate)
 		if amount > 0 {
 			authAcc, err := types.AccountFromBase58(s.defaultMerchantSettings.BonusMintAuth)
@@ -397,6 +425,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		}
 	}
 
+	// Build transaction.
 	base64Tx, err := txBuilder.Build(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to build transaction: %w", err)

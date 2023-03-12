@@ -3,7 +3,7 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/easypmnt/checkout-api/utils"
+	"github.com/easypmnt/checkout-api/internal/utils"
 )
 
 func TestTrimStringBetween(t *testing.T) {

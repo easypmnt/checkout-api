@@ -3,8 +3,8 @@ package jupiter_test
 import (
 	"testing"
 
+	"github.com/easypmnt/checkout-api/internal/utils"
 	"github.com/easypmnt/checkout-api/jupiter"
-	"github.com/easypmnt/checkout-api/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

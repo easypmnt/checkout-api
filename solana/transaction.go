@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/easypmnt/checkout-api/utils"
+	"github.com/easypmnt/checkout-api/internal/utils"
 	"github.com/pkg/errors"
 	"github.com/portto/solana-go-sdk/client"
 	"github.com/portto/solana-go-sdk/types"
