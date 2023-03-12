@@ -7,13 +7,20 @@ require (
 	github.com/dmitrymomot/go-env v1.0.2
 	github.com/everFinance/goar v1.5.2
 	github.com/go-chi/chi/v5 v5.0.8
+	github.com/go-chi/cors v1.2.1
+	github.com/go-chi/httprate v0.7.1
+	github.com/go-chi/httprate-redis v0.1.0
+	github.com/go-chi/oauth v0.0.0-20210913085627-d937e221b3ef
 	github.com/go-kit/kit v0.10.0
+	github.com/go-kit/log v0.2.1
 	github.com/google/go-querystring v1.1.0
 	github.com/google/uuid v1.3.0
 	github.com/gookit/validate v1.4.6
 	github.com/gorilla/websocket v1.5.0
 	github.com/hibiken/asynq v0.24.0
+	github.com/joho/godotenv v1.5.1
 	github.com/labstack/gommon v0.4.0
+	github.com/lib/pq v1.3.0
 	github.com/mcnijman/go-emailaddress v1.1.0
 	github.com/mr-tron/base58 v1.2.0
 	github.com/pkg/errors v0.9.1
@@ -38,10 +45,12 @@ require (
 	github.com/everFinance/goether v1.1.8 // indirect
 	github.com/everFinance/gojwk v1.0.0 // indirect
 	github.com/everFinance/ttcrsa v1.1.3 // indirect
-	github.com/go-logfmt/logfmt v0.5.0 // indirect
+	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
+	github.com/gofrs/uuid v4.0.0+incompatible // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/gomodule/redigo v1.8.9 // indirect
 	github.com/gookit/filter v1.1.4 // indirect
 	github.com/gookit/goutil v0.5.15 // indirect
 	github.com/hamba/avro v1.5.6 // indirect

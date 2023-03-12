@@ -54,42 +54,42 @@ func MakeHTTPHandler(e Endpoints, log logger, authMdw middlewareFunc) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Use(authMdw)
 
-		r.Post("/payment", httptransport.NewServer(
+		r.Post("/", httptransport.NewServer(
 			e.CreatePayment,
 			decodeCreatePaymentRequest,
 			httpencoder.EncodeResponse,
 			options...,
 		).ServeHTTP)
 
-		r.Get("/payment/pid/{payment_id}", httptransport.NewServer(
+		r.Get("/pid/{payment_id}", httptransport.NewServer(
 			e.GetPaymentInfo,
 			decodeGetPaymentInfoRequest,
 			httpencoder.EncodeResponse,
 			options...,
 		).ServeHTTP)
 
-		r.Get("/payment/ext/{external_id}", httptransport.NewServer(
+		r.Get("/ext/{external_id}", httptransport.NewServer(
 			e.GetPaymentInfoByExternalID,
 			decodeGetPaymentInfoByExternalIDRequest,
 			httpencoder.EncodeResponse,
 			options...,
 		).ServeHTTP)
 
-		r.Post("/payment/pid/{payment_id}/cancel", httptransport.NewServer(
+		r.Post("/pid/{payment_id}/cancel", httptransport.NewServer(
 			e.CancelPayment,
 			decodeCancelPaymentRequest,
 			httpencoder.EncodeResponse,
 			options...,
 		).ServeHTTP)
 
-		r.Post("/payment/pid/{payment_id}/link", httptransport.NewServer(
+		r.Post("/pid/{payment_id}/link", httptransport.NewServer(
 			e.GeneratePaymentLink,
 			decodeGeneratePaymentLinkRequest,
 			httpencoder.EncodeResponse,
 			options...,
 		).ServeHTTP)
 
-		r.Post("/payment/pid/{payment_id}/transaction", httptransport.NewServer(
+		r.Post("/pid/{payment_id}/transaction", httptransport.NewServer(
 			e.GeneratePaymentTransaction,
 			decodeGeneratePaymentTransactionRequest,
 			httpencoder.EncodeResponse,
