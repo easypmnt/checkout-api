@@ -1,6 +1,6 @@
 module github.com/easypmnt/checkout-api
 
-go 1.20
+go 1.19
 
 require (
 	filippo.io/edwards25519 v1.0.0-rc.1
