@@ -240,14 +240,16 @@ func (s *Service) CreatePayment(ctx context.Context, arg CreatePaymentParams) (u
 		return uuid.Nil, fmt.Errorf("failed to create payment: %w", err)
 	}
 
-	s.webhook.FireEvent(ctx, webhook.EventPaymentCreated, webhook.PaymentData{
-		PaymentID:  payment.Payment.ID.String(),
-		ExternalID: payment.Payment.ExternalID.String,
-		Amount:     uint64(payment.Payment.TotalAmount),
-		Currency:   payment.Payment.Currency,
-		Status:     string(payment.Payment.Status),
-		CreatedAt:  payment.Payment.CreatedAt.Format(time.RFC3339),
-	})
+	if s.webhook != nil {
+		s.webhook.FireEvent(ctx, webhook.EventPaymentCreated, webhook.PaymentData{
+			PaymentID:  payment.Payment.ID.String(),
+			ExternalID: payment.Payment.ExternalID.String,
+			Amount:     uint64(payment.Payment.TotalAmount),
+			Currency:   payment.Payment.Currency,
+			Status:     string(payment.Payment.Status),
+			CreatedAt:  payment.Payment.CreatedAt.Format(time.RFC3339),
+		})
+	}
 
 	return payment.Payment.ID, nil
 }
@@ -271,17 +273,21 @@ func (s *Service) CancelPayment(ctx context.Context, paymentID uuid.UUID) error 
 		return fmt.Errorf("failed to update payment status: %w", err)
 	}
 
-	s.webhook.FireEvent(ctx, webhook.EventPaymentCreated, webhook.PaymentData{
-		PaymentID:  payment.Payment.ID.String(),
-		ExternalID: payment.Payment.ExternalID.String,
-		Amount:     uint64(payment.Payment.TotalAmount),
-		Currency:   payment.Payment.Currency,
-		Status:     string(repository.PaymentStatusCanceled),
-		CreatedAt:  payment.Payment.CreatedAt.Format(time.RFC3339),
-	})
+	if s.webhook != nil {
+		s.webhook.FireEvent(ctx, webhook.EventPaymentCreated, webhook.PaymentData{
+			PaymentID:  payment.Payment.ID.String(),
+			ExternalID: payment.Payment.ExternalID.String,
+			Amount:     uint64(payment.Payment.TotalAmount),
+			Currency:   payment.Payment.Currency,
+			Status:     string(repository.PaymentStatusCanceled),
+			CreatedAt:  payment.Payment.CreatedAt.Format(time.RFC3339),
+		})
+	}
 
-	for _, tx := range payment.Transactions {
-		s.event.UnsubscribeByAddress(tx.Reference)
+	if s.event != nil {
+		for _, tx := range payment.Transactions {
+			s.event.UnsubscribeByAddress(tx.Reference)
+		}
 	}
 
 	return nil
@@ -514,18 +520,22 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		return "", fmt.Errorf("failed to create transaction: %w", err)
 	}
 
-	// Fire event to send notification to the merchant.
-	s.webhook.FireEvent(ctx, webhook.EventPaymentCreated, webhook.PaymentData{
-		PaymentID:  payment.Payment.ID.String(),
-		ExternalID: payment.Payment.ExternalID.String,
-		Amount:     uint64(payment.Payment.TotalAmount),
-		Currency:   payment.Payment.Currency,
-		Status:     string(repository.PaymentStatusPending),
-		CreatedAt:  payment.Payment.CreatedAt.Format(time.RFC3339),
-	})
+	if s.webhook != nil {
+		// Fire event to send notification to the merchant.
+		s.webhook.FireEvent(ctx, webhook.EventPaymentCreated, webhook.PaymentData{
+			PaymentID:  payment.Payment.ID.String(),
+			ExternalID: payment.Payment.ExternalID.String,
+			Amount:     uint64(payment.Payment.TotalAmount),
+			Currency:   payment.Payment.Currency,
+			Status:     string(repository.PaymentStatusPending),
+			CreatedAt:  payment.Payment.CreatedAt.Format(time.RFC3339),
+		})
+	}
 
-	// Subscribe to the reference account to receive transaction confirmation.
-	s.event.Subscribe(referenceAcc.PublicKey.ToBase58())
+	if s.event != nil {
+		// Subscribe to the reference account to receive transaction confirmation.
+		s.event.Subscribe(referenceAcc.PublicKey.ToBase58())
+	}
 
 	return base64Tx, nil
 }
@@ -664,14 +674,16 @@ func (s *Service) CheckPaymentStatus(ctx context.Context, reference string) (str
 				TxSignature: txSig,
 			})
 
-			s.webhook.FireEvent(ctx, webhook.EventPaymentCreated, webhook.PaymentData{
-				PaymentID:  payment.Payment.ID.String(),
-				ExternalID: payment.Payment.ExternalID.String,
-				Amount:     uint64(payment.Payment.TotalAmount),
-				Currency:   payment.Payment.Currency,
-				Status:     string(status),
-				CreatedAt:  payment.Payment.CreatedAt.Format(time.RFC3339),
-			})
+			if s.webhook != nil {
+				s.webhook.FireEvent(ctx, webhook.EventPaymentCreated, webhook.PaymentData{
+					PaymentID:  payment.Payment.ID.String(),
+					ExternalID: payment.Payment.ExternalID.String,
+					Amount:     uint64(payment.Payment.TotalAmount),
+					Currency:   payment.Payment.Currency,
+					Status:     string(status),
+					CreatedAt:  payment.Payment.CreatedAt.Format(time.RFC3339),
+				})
+			}
 		}()
 
 		for _, dest := range payment.Destinations {
