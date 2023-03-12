@@ -243,7 +243,7 @@ func (c *Client) GetOldestTransactionForWallet(
 	ctx context.Context,
 	base58Addr string,
 	offsetTxSignature string,
-) (*client.GetTransactionResponse, error) {
+) (string, *client.GetTransactionResponse, error) {
 	limit := 1000
 	result, err := c.rpcClient.GetSignaturesForAddressWithConfig(ctx, base58Addr, rpc.GetSignaturesForAddressConfig{
 		Limit:      limit,
@@ -251,29 +251,29 @@ func (c *Client) GetOldestTransactionForWallet(
 		Commitment: rpc.CommitmentFinalized,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get signatures for address: %s: %w", base58Addr, err)
+		return "", nil, fmt.Errorf("failed to get signatures for address: %s: %w", base58Addr, err)
 	}
 
 	if l := len(result); l == 0 {
-		return nil, ErrNoTransactionsFound
+		return "", nil, ErrNoTransactionsFound
 	} else if l < limit {
 		tx := result[l-1]
 		if tx.Err != nil {
-			return nil, fmt.Errorf("transaction failed: %v", tx.Err)
+			return "", nil, fmt.Errorf("transaction failed: %v", tx.Err)
 		}
 		if tx.Signature == "" {
-			return nil, ErrNoTransactionsFound
+			return "", nil, ErrNoTransactionsFound
 		}
 		if tx.BlockTime == nil || *tx.BlockTime == 0 || *tx.BlockTime > time.Now().Unix() {
-			return nil, ErrTransactionNotConfirmed
+			return "", nil, ErrTransactionNotConfirmed
 		}
 
 		resp, err := c.GetTransaction(ctx, tx.Signature)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get oldest transaction for wallet: %s: %w", base58Addr, err)
+			return "", nil, fmt.Errorf("failed to get oldest transaction for wallet: %s: %w", base58Addr, err)
 		}
 
-		return resp, nil
+		return tx.Signature, resp, nil
 	}
 
 	return c.GetOldestTransactionForWallet(ctx, base58Addr, result[limit-1].Signature)

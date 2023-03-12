@@ -3,42 +3,43 @@ package main
 import (
 	"context"
 	"database/sql"
-	"log"
+	"encoding/json"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/easypmnt/checkout-api/auth"
+	"github.com/easypmnt/checkout-api/internal/kitlog"
+	"github.com/easypmnt/checkout-api/jupiter"
 	"github.com/easypmnt/checkout-api/payment"
 	"github.com/easypmnt/checkout-api/repository"
 	"github.com/easypmnt/checkout-api/server"
+	"github.com/easypmnt/checkout-api/solana"
+	"github.com/easypmnt/checkout-api/webhook"
+	"github.com/easypmnt/checkout-api/websocketrpc"
 	"github.com/go-chi/oauth"
-	kitlog "github.com/go-kit/log"
 	"github.com/hibiken/asynq"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	_ "github.com/lib/pq" // init pg driver
 )
 
 func main() {
-	// Setup go-kit logger
-	var logger kitlog.Logger
-	{
-		logger = kitlog.NewJSONLogger(kitlog.NewSyncWriter(os.Stdout))
-		logger = kitlog.With(logger, "ts", kitlog.DefaultTimestampUTC)
-		logger = kitlog.With(logger, "caller", kitlog.DefaultCaller)
-		logger = kitlog.With(logger, "build", buildTagRuntime)
-		logger = kitlog.With(logger, "app", appName)
+	// Init logger
+	logger := logrus.WithFields(logrus.Fields{
+		"app":       appName,
+		"build_tag": buildTagRuntime,
+	})
 
-		log.SetOutput(kitlog.NewStdlibAdapter(logger))
-	}
-
-	// Global app context
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Errgroup with context
+	eg, ctx := errgroup.WithContext(newCtx(logger))
 
 	// Init DB connection
 	db, err := sql.Open("postgres", dbConnString)
 	if err != nil {
-		logger.Log("error", err, "msg", "failed to open db connection")
-		os.Exit(1)
+		logger.WithError(err).Fatal("failed to init db connection")
 	}
 	defer db.Close()
 
@@ -46,15 +47,26 @@ func main() {
 	db.SetMaxIdleConns(dbMaxIdleConns)
 
 	if err := db.Ping(); err != nil {
-		logger.Log("error", err, "msg", "failed to ping db")
-		os.Exit(1)
+		logger.WithError(err).Fatal("failed to ping db")
 	}
 
 	// Init repository
 	repo, err := repository.NewWithConnection(ctx, db)
 	if err != nil {
-		logger.Log("error", err, "msg", "failed to init repository")
-		os.Exit(1)
+		logger.WithError(err).Fatal("failed to init repository")
+	}
+
+	// Redis connect options for asynq client
+	redisConnOpt := asynq.RedisClientOpt{
+		Network:      redisNetwork,
+		Addr:         redisConnAddr,
+		Username:     redisUsername,
+		Password:     redisPassword,
+		DB:           redisDB,
+		DialTimeout:  redisDialTimeout,
+		ReadTimeout:  redisReadTimeout,
+		WriteTimeout: redisWriteTimeout,
+		PoolSize:     redisPoolSize,
 	}
 
 	// Init asynq client
@@ -64,11 +76,50 @@ func main() {
 	})
 	defer asynqClient.Close()
 
+	// Init Solana client
+	solClient := solana.NewClient(
+		solana.WithRPCEndpoint(solanaRPCEndpoint),
+	)
+
+	// Init Jupiter client
+	jupiterClient := jupiter.NewClient()
+
 	// Init HTTP router
 	r := initRouter(logger)
 
 	// OAuth2 Middleware
 	oauthMdw := oauth.Authorize(oauthSigningKey, nil)
+
+	// webhook enqueuer
+	webhookEnqueuer := webhook.NewEnqueuer(asynqClient)
+
+	// Payment worker enqueuer
+	paymentEnqueuer := payment.NewEnqueuer(asynqClient)
+
+	// Setup event listener
+	wsConn := openWebsocketConnection(ctx, solanaWSSEndpoint, logger, eg)
+	eventClient := websocketrpc.NewClient(wsConn,
+		websocketrpc.WithEventHandler(
+			websocketrpc.EventAccountNotification,
+			func(base58Addr string, _ json.RawMessage) error {
+				return paymentEnqueuer.CheckPaymentByReference(ctx, base58Addr)
+			},
+		),
+	)
+
+	// Payment service
+	paymentService := payment.NewService(
+		repo, solClient, jupiterClient,
+		payment.WithSolanaPayBaseURI(solanaPayBaseURI),
+		payment.WithDefaultMerchantWalletAddress(merchantWalletAddress),
+		payment.WithDefaultMerchantApplyBonus(merchantApplyBonus),
+		payment.WithDefaultMerchantMaxBonusPerc(uint16(merchantMaxBonusPercentage)),
+		payment.WithDefaultMerchantBonusMintAddr(bonusMintAddress),
+		payment.WithDefaultMerchantBonusMintAuthority(bonusMintAuthority),
+		payment.WithDefaultMerchantBonusRate(uint64(bonusRate)),
+		payment.WithWebhookEnqueuer(webhookEnqueuer),
+		payment.WithEventClient(eventClient),
+	)
 
 	// Mount HTTP endpoints
 	{
@@ -90,16 +141,69 @@ func main() {
 		// payment service
 		r.Mount("/payment", server.MakeHTTPHandler(
 			server.MakeEndpoints(
-				payment.NewService(repo, nil, nil),
+				paymentService,
 				server.Config{
 					AppName:    productName,
 					AppIconURI: productIconURI,
 				},
 			),
-			logger, oauthMdw,
+			kitlog.NewLogger(logger), oauthMdw,
 		))
 	}
 
 	// Run HTTP server
-	runServer(httpPort, r, logger)
+	eg.Go(runServer(ctx, httpPort, r, logger))
+
+	// Run asynq worker
+	eg.Go(runQueueServer(
+		redisConnOpt,
+		logger,
+		payment.NewWorker(paymentService, eventClient),
+		webhook.NewWorker(webhook.NewService(
+			webhook.WithSignatureSecret(webhookSignatureSecret),
+			webhook.WithWebhookURI(webhookURI),
+		)),
+	))
+
+	// Run asynq scheduler
+	eg.Go(runScheduler(
+		redisConnOpt,
+		logger,
+		// TODO: add scheduler workers
+	))
+
+	// Run event listener
+	eg.Go(func() error {
+		return eventClient.Run(ctx)
+	})
+
+	// Run all goroutines
+	if err := eg.Wait(); err != nil {
+		logger.WithError(err).Fatal("error occurred")
+	}
+
+	time.Sleep(5 * time.Second) // wait for all goroutines to finish
+	logger.Info("server successfuly shutdown")
+}
+
+// newCtx creates a new context that is cancelled when an interrupt signal is received.
+func newCtx(log *logrus.Entry) context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer cancel()
+
+		sCh := make(chan os.Signal, 1)
+		signal.Notify(sCh, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGPIPE)
+		<-sCh
+
+		// Shutdown signal with grace period of N seconds (default: 5 seconds)
+		shutdownCtx, shutdownCtxCancel := context.WithTimeout(ctx, httpServerShutdownTimeout)
+		defer shutdownCtxCancel()
+
+		<-shutdownCtx.Done()
+		if shutdownCtx.Err() == context.DeadlineExceeded {
+			log.Error("shutdown timeout exceeded")
+		}
+	}()
+	return ctx
 }

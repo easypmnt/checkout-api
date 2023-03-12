@@ -8,6 +8,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// Task types.
+const (
+	TaskCheckPaymentByReference = "payment:check_payment_by_reference"
+)
+
+// Reference payload to check payment by reference task.
+type ReferencePayload struct {
+	Reference string `json:"reference"`
+}
+
 // Predefined statuses of the payment.
 const (
 	StatusNew       = "new"       // New payment. No transactions yet.

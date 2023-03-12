@@ -5,28 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 
 	"github.com/easypmnt/checkout-api/internal/recoverer"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/go-chi/httprate"
-	httprateredis "github.com/go-chi/httprate-redis"
-)
-
-type (
-	// logger interface
-	logger interface {
-		Log(keyvals ...interface{}) error
-	}
+	"github.com/sirupsen/logrus"
 )
 
 // Init HTTP router
-func initRouter(log logger) *chi.Mux {
+func initRouter(log *logrus.Entry) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(
@@ -42,16 +31,6 @@ func initRouter(log logger) *chi.Mux {
 		middleware.NoCache,
 		middleware.RealIP,
 		middleware.RequestID,
-
-		// Rate limit by IP address with Redis backend.
-		httprate.Limit(
-			httpRateLimit,
-			httpRateLimitDuration,
-			httprate.WithKeyByRealIP(),
-			httprateredis.WithRedisLimitCounter(&httprateredis.Config{
-				Host: redisHost, Port: uint16(redisPort),
-			}),
-		),
 
 		// Basic CORS
 		// for more ideas, see: https://developer.github.com/v3/#cross-origin-resource-sharing
@@ -77,57 +56,32 @@ func initRouter(log logger) *chi.Mux {
 }
 
 // Run HTTP server
-func runServer(httpPort int, router http.Handler, log logger) {
-	log.Log("msg", "Starting HTTP server", "port", httpPort)
+func runServer(ctx context.Context, httpPort int, router http.Handler, log *logrus.Entry) func() error {
+	return func() error {
+		log = log.WithField("port", httpPort)
+		log.Info("Starting HTTP server")
+		defer func() { log.Info("HTTP server stopped") }()
 
-	// Server run context
-	serverCtx, serverStopCtx := context.WithCancel(context.Background())
-	defer serverStopCtx()
-
-	// Listen for syscall signals for process to interrupt/quit
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGPIPE)
-
-	httpServer := &http.Server{
-		Handler: router,
-		Addr:    fmt.Sprintf(":%d", httpPort),
-	}
-
-	go func() {
-		<-sig
-
-		log.Log("msg", "Received interrupt signal, shutting down...")
-
-		// Shutdown signal with grace period of 30 seconds
-		shutdownCtx, shutdownCtxCancel := context.WithTimeout(serverCtx, httpServerShutdownTimeout)
-		defer shutdownCtxCancel()
+		httpServer := &http.Server{
+			Handler: router,
+			Addr:    fmt.Sprintf(":%d", httpPort),
+		}
 
 		go func() {
-			<-shutdownCtx.Done()
-			if shutdownCtx.Err() == context.DeadlineExceeded {
-				log.Log("msg", "graceful shutdown timed out.. forcing exit.")
-				os.Exit(1)
-			}
+			<-ctx.Done()
+			log.Info("Waiting for all connections to be closed")
+
+			// Trigger graceful shutdown
+			httpServer.Shutdown(ctx)
 		}()
 
-		// Trigger graceful shutdown
-		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			log.Log("msg", "http server shutdown error", "error", err)
-			os.Exit(1)
+		// Run the server
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			return fmt.Errorf("http server shut down with an error: %w", err)
 		}
-		serverStopCtx()
-	}()
 
-	// Run the server
-	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Log("msg", "http server shut down with an error", "error", err)
-		os.Exit(1)
+		return nil
 	}
-
-	// Wait for server context to be stopped
-	<-serverCtx.Done()
-
-	log.Log("msg", "HTTP server stopped")
 }
 
 // returns 204 HTTP status without content

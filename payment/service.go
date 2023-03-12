@@ -12,7 +12,9 @@ import (
 	"github.com/easypmnt/checkout-api/jupiter"
 	"github.com/easypmnt/checkout-api/repository"
 	"github.com/easypmnt/checkout-api/solana"
+	"github.com/easypmnt/checkout-api/webhook"
 	"github.com/google/uuid"
+	"github.com/portto/solana-go-sdk/client"
 	"github.com/portto/solana-go-sdk/types"
 )
 
@@ -22,6 +24,8 @@ type (
 		repo      paymentRepository
 		jupClient jupiterClient
 		solClient solanaClient
+		webhook   webhookEnqueuer
+		event     paymentEventClient
 
 		// defaultMerchantSettings is the default merchant settings
 		// that will be used, if not set while payment creation.
@@ -54,6 +58,7 @@ type (
 		GetPaymentInfoByExternalID(ctx context.Context, externalID string) (repository.PaymentInfo, error)
 		UpdatePaymentStatus(ctx context.Context, arg repository.UpdatePaymentStatusParams) (repository.Payment, error)
 		UpdatePaymentDestinations(ctx context.Context, arg repository.UpdatePaymentDestinationsParams) error
+		GetTransactionByReference(ctx context.Context, reference string) (repository.Transaction, error)
 	}
 
 	solanaClient interface {
@@ -63,10 +68,20 @@ type (
 		GetLatestBlockhash(ctx context.Context) (string, error)
 		DoesTokenAccountExist(ctx context.Context, base58AtaAddr string) (bool, error)
 		GetMinimumBalanceForRentExemption(ctx context.Context, size uint64) (uint64, error)
+		GetOldestTransactionForWallet(ctx context.Context, base58Addr string, offsetTxSignature string) (string, *client.GetTransactionResponse, error)
 	}
 
 	jupiterClient interface {
 		BestSwap(params jupiter.BestSwapParams) (string, error)
+	}
+
+	webhookEnqueuer interface {
+		FireEvent(ctx context.Context, event string, payload webhook.PaymentData) error
+	}
+
+	paymentEventClient interface {
+		Subscribe(base58Addr string) error
+		UnsubscribeByAddress(base58Addr string) error
 	}
 )
 
@@ -225,18 +240,27 @@ func (s *Service) CreatePayment(ctx context.Context, arg CreatePaymentParams) (u
 		return uuid.Nil, fmt.Errorf("failed to create payment: %w", err)
 	}
 
+	s.webhook.FireEvent(ctx, webhook.EventPaymentCreated, webhook.PaymentData{
+		PaymentID:  payment.Payment.ID.String(),
+		ExternalID: payment.Payment.ExternalID.String,
+		Amount:     uint64(payment.Payment.TotalAmount),
+		Currency:   payment.Payment.Currency,
+		Status:     string(payment.Payment.Status),
+		CreatedAt:  payment.Payment.CreatedAt.Format(time.RFC3339),
+	})
+
 	return payment.Payment.ID, nil
 }
 
 // CancelPayment cancels the payment with the given id.
 // It returns an error if any.
 func (s *Service) CancelPayment(ctx context.Context, paymentID uuid.UUID) error {
-	payment, err := s.repo.GetPayment(ctx, paymentID)
+	payment, err := s.repo.GetPaymentInfo(ctx, paymentID)
 	if err != nil {
 		return fmt.Errorf("failed to get payment: %w", err)
 	}
 
-	if payment.Status != repository.PaymentStatusNew {
+	if payment.Payment.Status != repository.PaymentStatusNew {
 		return fmt.Errorf("payment status is not new")
 	}
 
@@ -245,6 +269,19 @@ func (s *Service) CancelPayment(ctx context.Context, paymentID uuid.UUID) error 
 		Status: repository.PaymentStatusCanceled,
 	}); err != nil {
 		return fmt.Errorf("failed to update payment status: %w", err)
+	}
+
+	s.webhook.FireEvent(ctx, webhook.EventPaymentCreated, webhook.PaymentData{
+		PaymentID:  payment.Payment.ID.String(),
+		ExternalID: payment.Payment.ExternalID.String,
+		Amount:     uint64(payment.Payment.TotalAmount),
+		Currency:   payment.Payment.Currency,
+		Status:     string(repository.PaymentStatusCanceled),
+		CreatedAt:  payment.Payment.CreatedAt.Format(time.RFC3339),
+	})
+
+	for _, tx := range payment.Transactions {
+		s.event.UnsubscribeByAddress(tx.Reference)
 	}
 
 	return nil
@@ -477,6 +514,19 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		return "", fmt.Errorf("failed to create transaction: %w", err)
 	}
 
+	// Fire event to send notification to the merchant.
+	s.webhook.FireEvent(ctx, webhook.EventPaymentCreated, webhook.PaymentData{
+		PaymentID:  payment.Payment.ID.String(),
+		ExternalID: payment.Payment.ExternalID.String,
+		Amount:     uint64(payment.Payment.TotalAmount),
+		Currency:   payment.Payment.Currency,
+		Status:     string(repository.PaymentStatusPending),
+		CreatedAt:  payment.Payment.CreatedAt.Format(time.RFC3339),
+	})
+
+	// Subscribe to the reference account to receive transaction confirmation.
+	s.event.Subscribe(referenceAcc.PublicKey.ToBase58())
+
 	return base64Tx, nil
 }
 
@@ -569,4 +619,86 @@ func calcBonusAmount(availableBonus int64, dest repository.PaymentDestination) i
 	}
 
 	return bonusAmount
+}
+
+// CheckPaymentStatus checks the status of the payment by the given reference.
+// It returns an error if any.
+func (s *Service) CheckPaymentStatus(ctx context.Context, reference string) (string, error) {
+	transaction, err := s.repo.GetTransactionByReference(ctx, reference)
+	if err != nil {
+		return "", fmt.Errorf("failed to get transaction by reference: %w", err)
+	}
+	if transaction.Status != repository.TransactionStatusPending {
+		return string(transaction.Status), nil
+	}
+
+	txSig, oldestTx, err := s.solClient.GetOldestTransactionForWallet(ctx, reference, "")
+	if err != nil {
+		// if transaction not found, then it's failed
+		if transaction.CreatedAt.Before(time.Now().Add(-time.Hour)) {
+			if _, err := s.repo.UpdateTransaction(ctx, repository.UpdateTransactionParams{
+				Status:    repository.TransactionStatusFailed,
+				Reference: reference,
+			}); err != nil {
+				return "", fmt.Errorf("failed to update transaction status: %w", err)
+			}
+			return string(repository.TransactionStatusFailed), nil
+		}
+	}
+
+	if oldestTx != nil {
+		payment, err := s.repo.GetPaymentInfo(ctx, transaction.PaymentID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get payment record: %w", err)
+		}
+
+		// update transaction status in db before returning
+		defer func() {
+			status := repository.TransactionStatusCompleted
+			if oldestTx.Meta.Err != nil || err != nil {
+				status = repository.TransactionStatusFailed
+			}
+			s.repo.UpdateTransaction(ctx, repository.UpdateTransactionParams{
+				Status:      status,
+				Reference:   reference,
+				TxSignature: txSig,
+			})
+
+			s.webhook.FireEvent(ctx, webhook.EventPaymentCreated, webhook.PaymentData{
+				PaymentID:  payment.Payment.ID.String(),
+				ExternalID: payment.Payment.ExternalID.String,
+				Amount:     uint64(payment.Payment.TotalAmount),
+				Currency:   payment.Payment.Currency,
+				Status:     string(status),
+				CreatedAt:  payment.Payment.CreatedAt.Format(time.RFC3339),
+			})
+		}()
+
+		for _, dest := range payment.Destinations {
+			if IsSOL(payment.Payment.Currency) {
+				if err := solana.CheckSolTransferTransaction(
+					oldestTx.Meta,
+					oldestTx.Transaction,
+					dest.Destination,
+					uint64(dest.TotalAmount),
+				); err != nil {
+					return "", fmt.Errorf("failed to check SOL transfer transaction: %w", err)
+				}
+			} else {
+				if err := solana.CheckTokenTransferTransaction(
+					oldestTx.Meta,
+					oldestTx.Transaction,
+					payment.Payment.Currency,
+					dest.Destination,
+					uint64(dest.TotalAmount),
+				); err != nil {
+					return "", fmt.Errorf("failed to check token transfer transaction: %w", err)
+				}
+			}
+
+			return string(repository.TransactionStatusCompleted), nil
+		}
+	}
+
+	return string(transaction.Status), nil
 }

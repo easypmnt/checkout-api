@@ -26,7 +26,6 @@ type (
 		reqChan   chan *Request
 		respChan  chan *Response
 		eventChan chan *Event
-		done      chan bool
 	}
 
 	ClientOption     func(*Client)
@@ -53,7 +52,6 @@ func NewClient(conn *websocket.Conn, opts ...ClientOption) *Client {
 		reqChan:   make(chan *Request, 1000),
 		respChan:  make(chan *Response, 1000),
 		eventChan: make(chan *Event, 1000),
-		done:      make(chan bool),
 	}
 
 	for _, opt := range opts {
@@ -175,7 +173,6 @@ func (c *Client) unsubscribeAll() error {
 		case <-ticker.C:
 			if c.subscriptions.Len() == 0 {
 				c.log.Infof("websocketrpc: unsubscribed from all accounts")
-				c.done <- true
 				return nil // all subscriptions removed
 			}
 		case <-time.After(15 * time.Second):
@@ -214,8 +211,6 @@ func (c *Client) listener() error {
 			if e, ok := err.(*websocket.CloseError); ok {
 				return fmt.Errorf("websocketrpc: listen: connection closed with code %d (%s)", e.Code, e.Text)
 			}
-
-			c.log.Errorf("websocketrpc: listen: error reading message: %v", err)
 			continue
 		}
 
@@ -274,7 +269,7 @@ func (c *Client) runner() error {
 }
 
 // Run websocket rpc service.
-func (c *Client) Run(ctx context.Context) {
+func (c *Client) Run(ctx context.Context) error {
 	eg, _ := errgroup.WithContext(ctx)
 
 	eg.Go(c.listener)
@@ -286,14 +281,18 @@ func (c *Client) Run(ctx context.Context) {
 	c.log.Infof("websocketrpc: run: context done, stopping...")
 	eg.Go(c.unsubscribeAll)
 
-	// Wait for the run function to finish.
-	<-c.done
+	if err := eg.Wait(); err != nil {
+		c.log.Errorf("websocketrpc: run: error: %v", err)
+	}
+
+	c.conn = nil
 
 	// Close all channels.
 	close(c.reqChan)
 	close(c.respChan)
 	close(c.eventChan)
-	close(c.done)
 
 	c.log.Infof("websocketrpc: stopped")
+
+	return nil
 }

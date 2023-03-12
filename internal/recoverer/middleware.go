@@ -6,14 +6,11 @@ import (
 	"runtime/debug"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/sirupsen/logrus"
 )
 
-type Logger interface {
-	Log(keyvals ...interface{}) error
-}
-
 // WithLogger is a custom recovery middleware that logs the error and stacktrace
-func WithLogger(log Logger) func(next http.Handler) http.Handler {
+func WithLogger(log *logrus.Entry) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
@@ -22,7 +19,11 @@ func WithLogger(log Logger) func(next http.Handler) http.Handler {
 					reqID := middleware.GetReqID(r.Context())
 
 					if log != nil {
-						log.Log("request_id", reqID, "panic", rvr, "stack", debug.Stack())
+						log.WithFields(logrus.Fields{
+							"request_id": reqID,
+							"panic":      rvr,
+							"stack":      debug.Stack(),
+						}).Error("panic recovered")
 					} else {
 						middleware.PrintPrettyStack(rvr)
 					}
