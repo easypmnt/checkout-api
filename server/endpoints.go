@@ -33,7 +33,7 @@ type (
 		CancelPayment(ctx context.Context, paymentID uuid.UUID) error
 		GetPaymentInfo(ctx context.Context, paymentID uuid.UUID) (*payment.Payment, error)
 		GetPaymentInfoByExternalID(ctx context.Context, externalID string) (*payment.Payment, error)
-		GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID) (string, error)
+		GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID, currency string, applyBonus bool) (string, error)
 		GeneratePaymentTransaction(ctx context.Context, arg payment.GeneratePaymentTransactionParams) (string, error)
 	}
 )
@@ -167,6 +167,13 @@ func makeGetPaymentInfoByExternalIDEndpoint(ps paymentService) endpoint.Endpoint
 	}
 }
 
+// GeneratePaymentLinkRequest is the request type for the GeneratePaymentLink method.
+type GeneratePaymentLinkRequest struct {
+	PaymentID  uuid.UUID `json:"-" validate:"-" label:"Payment ID"`
+	Currency   string    `json:"currency,omitempty" validate:"-" label:"Currency"`
+	ApplyBonus string    `json:"apply_bonus,omitempty" validate:"omitempty|bool" label:"Apply Bonus"`
+}
+
 // GeneratePaymentLinkResponse is the response type for the GeneratePaymentLink method.
 type GeneratePaymentLinkResponse struct {
 	Link string `json:"link"`
@@ -175,12 +182,16 @@ type GeneratePaymentLinkResponse struct {
 // makeGeneratePaymentLinkEndpoint returns an endpoint function for the GeneratePaymentLink method.
 func makeGeneratePaymentLinkEndpoint(ps paymentService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		paymentID, ok := request.(uuid.UUID)
+		req, ok := request.(GeneratePaymentLinkRequest)
 		if !ok {
 			return nil, ErrInvalidRequest
 		}
+		if v := validator.ValidateStruct(req); len(v) > 0 {
+			return nil, validator.NewValidationError(v)
+		}
 
-		link, err := ps.GeneratePaymentLink(ctx, paymentID)
+		applyBonus, _ := strconv.ParseBool(req.ApplyBonus)
+		link, err := ps.GeneratePaymentLink(ctx, req.PaymentID, req.Currency, applyBonus)
 		if err != nil {
 			return nil, err
 		}
@@ -191,10 +202,10 @@ func makeGeneratePaymentLinkEndpoint(ps paymentService) endpoint.Endpoint {
 
 // GeneratePaymentTransactionRequest is the request type for the GeneratePaymentTransaction method.
 type GeneratePaymentTransactionRequest struct {
-	PaymentID  string `json:"payment_id" validate:"required|uuid" label:"Payment ID"`
+	PaymentID  string `json:"-" validate:"required|uuid" label:"Payment ID"`
 	Base58Addr string `json:"account" validate:"required" label:"Account public key"`
-	Currency   string `json:"currency,omitempty" validate:"-"`
-	ApplyBonus string `json:"apply_bonus,omitempty" validate:"omitempty|bool"`
+	Currency   string `json:"-" validate:"-"`
+	ApplyBonus string `json:"-" validate:"omitempty|bool"`
 }
 
 // GeneratePaymentTransactionResponse is the response type for the GeneratePaymentTransaction method.

@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/easypmnt/checkout-api/internal/utils"
@@ -274,7 +276,7 @@ func (s *Service) GetPaymentInfoByExternalID(ctx context.Context, externalID str
 
 // GeneratePaymentLink generates a payment link for the given payment id to be used in the QR code.
 // It returns the generated link and an error if any.
-func (s *Service) GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID) (string, error) {
+func (s *Service) GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID, currency string, applyBonus bool) (string, error) {
 	payment, err := s.repo.GetPayment(ctx, paymentID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get payment: %w", err)
@@ -287,7 +289,19 @@ func (s *Service) GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID) 
 		return "", fmt.Errorf("payment status is not new")
 	}
 
-	return fmt.Sprintf("solana:%s/%s", s.solanaPayBaseURI, paymentID), nil
+	uri, err := url.Parse(fmt.Sprintf("%s/%s", s.solanaPayBaseURI, paymentID))
+	if err != nil {
+		return "", fmt.Errorf("failed to generate payment link: %w", err)
+	}
+
+	q := uri.Query()
+	q.Set("applyBonus", strconv.FormatBool(applyBonus))
+	if currency != "" {
+		q.Set("currency", currency)
+	}
+	uri.RawQuery = q.Encode()
+
+	return fmt.Sprintf("solana:%s", uri.String()), nil
 }
 
 // GeneratePaymentTransactionParams contains the params for generating a payment transaction.
