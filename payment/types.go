@@ -1,6 +1,7 @@
 package payment
 
 import (
+	"strings"
 	"time"
 
 	"github.com/easypmnt/checkout-api/repository"
@@ -21,6 +22,23 @@ var defaultCurrencies = map[string]string{
 	"USDC": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
 	"USDT": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
 	"SOL":  "So11111111111111111111111111111111111111112",
+}
+
+// CurrencyMintAddress returns the address of the currency.
+func CurrencyMintAddress(currency string) string {
+	c := strings.ToUpper(currency)
+	if address, ok := defaultCurrencies[c]; ok {
+		return address
+	} else if len(c) >= 32 {
+		return c
+	}
+	return ""
+}
+
+// IsSOL checks if the currency is SOL.
+func IsSOL(currency string) bool {
+	c := strings.ToUpper(currency)
+	return c == "SOL" || defaultCurrencies["SOL"] == c
 }
 
 type (

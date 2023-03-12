@@ -110,11 +110,9 @@ type (
 // It returns the created payment id and an error if any.
 // TODO: refactor this function, it is too long.
 func (s *Service) CreatePayment(ctx context.Context, arg CreatePaymentParams) (uuid.UUID, error) {
+	arg.Currency = CurrencyMintAddress(arg.Currency)
 	if arg.Currency == "" {
 		return uuid.Nil, fmt.Errorf("currency is required")
-	}
-	if tokenMint, ok := defaultCurrencies[arg.Currency]; ok {
-		arg.Currency = tokenMint
 	}
 
 	paymentParams := repository.CreatePaymentParams{
@@ -289,6 +287,8 @@ func (s *Service) GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID, 
 		return "", fmt.Errorf("payment status is not new")
 	}
 
+	currency = CurrencyMintAddress(currency)
+
 	uri, err := url.Parse(fmt.Sprintf("%s/%s", s.solanaPayBaseURI, paymentID))
 	if err != nil {
 		return "", fmt.Errorf("failed to generate payment link: %w", err)
@@ -326,6 +326,8 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 	if payment.Payment.Status != repository.PaymentStatusNew && payment.Payment.Status != repository.PaymentStatusFailed {
 		return "", fmt.Errorf("payment status is not new")
 	}
+
+	arg.Currency = CurrencyMintAddress(arg.Currency)
 
 	var (
 		referenceAcc = types.NewAccount()
@@ -400,7 +402,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 	}
 
 	// Transfer payment amount to the merchants.
-	if payment.Payment.Currency == "SOL" || payment.Payment.Currency == defaultCurrencies["SOL"] {
+	if IsSOL(payment.Payment.Currency) {
 		for _, dest := range payment.Destinations {
 			txBuilder = txBuilder.AddInstruction(solana.TransferSOL(solana.TransferSOLParams{
 				Sender:    arg.Base58Addr,
