@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/easypmnt/checkout-api/auth"
 	"github.com/easypmnt/checkout-api/payment"
 	"github.com/easypmnt/checkout-api/repository"
 	"github.com/easypmnt/checkout-api/server"
@@ -29,7 +30,7 @@ func main() {
 		log.SetOutput(kitlog.NewStdlibAdapter(logger))
 	}
 
-	// Global context
+	// Global app context
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -49,6 +50,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Init repository
+	repo, err := repository.NewWithConnection(ctx, db)
+	if err != nil {
+		logger.Log("error", err, "msg", "failed to init repository")
+		os.Exit(1)
+	}
+
 	// Init asynq client
 	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
 		Addr:     redisConnAddr,
@@ -59,30 +67,27 @@ func main() {
 	// Init HTTP router
 	r := initRouter(logger)
 
-	// Set up limited oauth2 server for password, client_credentials, and refresh_token flows.
-	// Does not support authorization code flow.
-	// oauthServer := oauth.NewBearerServer(
-	// 	oauthSigningKey,
-	// 	accessTokenTTL,
-	// 	iam.NewOAuthVerifier(
-	// 		iamRepo,
-	// 		iam.WithOauthAccessTokenTTL(accessTokenTTL),
-	// 		iam.WithOauthRefreshTokenTTL(refreshTokenTTL),
-	// 	),
-	// 	nil,
-	// )
-
 	// OAuth2 Middleware
 	oauthMdw := oauth.Authorize(oauthSigningKey, nil)
 
 	// Mount HTTP endpoints
 	{
-		repo, err := repository.NewWithConnection(ctx, db)
-		if err != nil {
-			logger.Log("error", err, "msg", "failed to init repository")
-			os.Exit(1)
-		}
+		// oauth service
+		r.Mount("/oauth", auth.MakeHTTPHandler(
+			auth.NewOAuth2Server(
+				oauthSigningKey,
+				accessTokenTTL,
+				auth.NewVerifier(
+					repo,
+					clientID,
+					clientSecret,
+					auth.WithAccessTokenTTL(accessTokenTTL),
+					auth.WithRefreshTokenTTL(refreshTokenTTL),
+				),
+			),
+		))
 
+		// payment service
 		r.Mount("/payment", server.MakeHTTPHandler(
 			server.MakeEndpoints(
 				payment.NewService(repo, nil, nil),

@@ -126,6 +126,17 @@ type PaymentDestination struct {
 	MaxBonusPercentage int16         `json:"max_bonus_percentage"`
 }
 
+type Token struct {
+	TokenType        string       `json:"token_type"`
+	Credential       string       `json:"credential"`
+	AccessTokenID    uuid.UUID    `json:"access_token_id"`
+	RefreshTokenID   uuid.UUID    `json:"refresh_token_id"`
+	AccessExpiresAt  time.Time    `json:"access_expires_at"`
+	RefreshExpiresAt time.Time    `json:"refresh_expires_at"`
+	UpdatedAt        sql.NullTime `json:"updated_at"`
+	CreatedAt        time.Time    `json:"created_at"`
+}
+
 type Transaction struct {
 	ID             uuid.UUID         `json:"id"`
 	PaymentID      uuid.UUID         `json:"payment_id"`

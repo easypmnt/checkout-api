@@ -33,8 +33,17 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createTransactionStmt, err = db.PrepareContext(ctx, createTransaction); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateTransaction: %w", err)
 	}
+	if q.deleteExpiredTokensStmt, err = db.PrepareContext(ctx, deleteExpiredTokens); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteExpiredTokens: %w", err)
+	}
 	if q.deletePaymentDestinationsStmt, err = db.PrepareContext(ctx, deletePaymentDestinations); err != nil {
 		return nil, fmt.Errorf("error preparing query DeletePaymentDestinations: %w", err)
+	}
+	if q.deleteTokenStmt, err = db.PrepareContext(ctx, deleteToken); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteToken: %w", err)
+	}
+	if q.deleteTokensByCredentialStmt, err = db.PrepareContext(ctx, deleteTokensByCredential); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteTokensByCredential: %w", err)
 	}
 	if q.getPaymentStmt, err = db.PrepareContext(ctx, getPayment); err != nil {
 		return nil, fmt.Errorf("error preparing query GetPayment: %w", err)
@@ -45,6 +54,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getPaymentDestinationsStmt, err = db.PrepareContext(ctx, getPaymentDestinations); err != nil {
 		return nil, fmt.Errorf("error preparing query GetPaymentDestinations: %w", err)
 	}
+	if q.getTokenStmt, err = db.PrepareContext(ctx, getToken); err != nil {
+		return nil, fmt.Errorf("error preparing query GetToken: %w", err)
+	}
 	if q.getTransactionStmt, err = db.PrepareContext(ctx, getTransaction); err != nil {
 		return nil, fmt.Errorf("error preparing query GetTransaction: %w", err)
 	}
@@ -53,6 +65,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getTransactionsByPaymentIDStmt, err = db.PrepareContext(ctx, getTransactionsByPaymentID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetTransactionsByPaymentID: %w", err)
+	}
+	if q.storeTokenStmt, err = db.PrepareContext(ctx, storeToken); err != nil {
+		return nil, fmt.Errorf("error preparing query StoreToken: %w", err)
 	}
 	if q.updatePaymentStatusStmt, err = db.PrepareContext(ctx, updatePaymentStatus); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdatePaymentStatus: %w", err)
@@ -80,9 +95,24 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createTransactionStmt: %w", cerr)
 		}
 	}
+	if q.deleteExpiredTokensStmt != nil {
+		if cerr := q.deleteExpiredTokensStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteExpiredTokensStmt: %w", cerr)
+		}
+	}
 	if q.deletePaymentDestinationsStmt != nil {
 		if cerr := q.deletePaymentDestinationsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deletePaymentDestinationsStmt: %w", cerr)
+		}
+	}
+	if q.deleteTokenStmt != nil {
+		if cerr := q.deleteTokenStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteTokenStmt: %w", cerr)
+		}
+	}
+	if q.deleteTokensByCredentialStmt != nil {
+		if cerr := q.deleteTokensByCredentialStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteTokensByCredentialStmt: %w", cerr)
 		}
 	}
 	if q.getPaymentStmt != nil {
@@ -100,6 +130,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getPaymentDestinationsStmt: %w", cerr)
 		}
 	}
+	if q.getTokenStmt != nil {
+		if cerr := q.getTokenStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getTokenStmt: %w", cerr)
+		}
+	}
 	if q.getTransactionStmt != nil {
 		if cerr := q.getTransactionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getTransactionStmt: %w", cerr)
@@ -113,6 +148,11 @@ func (q *Queries) Close() error {
 	if q.getTransactionsByPaymentIDStmt != nil {
 		if cerr := q.getTransactionsByPaymentIDStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getTransactionsByPaymentIDStmt: %w", cerr)
+		}
+	}
+	if q.storeTokenStmt != nil {
+		if cerr := q.storeTokenStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing storeTokenStmt: %w", cerr)
 		}
 	}
 	if q.updatePaymentStatusStmt != nil {
@@ -167,13 +207,18 @@ type Queries struct {
 	createPaymentStmt                *sql.Stmt
 	createPaymentDestinationStmt     *sql.Stmt
 	createTransactionStmt            *sql.Stmt
+	deleteExpiredTokensStmt          *sql.Stmt
 	deletePaymentDestinationsStmt    *sql.Stmt
+	deleteTokenStmt                  *sql.Stmt
+	deleteTokensByCredentialStmt     *sql.Stmt
 	getPaymentStmt                   *sql.Stmt
 	getPaymentByExternalIDStmt       *sql.Stmt
 	getPaymentDestinationsStmt       *sql.Stmt
+	getTokenStmt                     *sql.Stmt
 	getTransactionStmt               *sql.Stmt
 	getTransactionByReferenceStmt    *sql.Stmt
 	getTransactionsByPaymentIDStmt   *sql.Stmt
+	storeTokenStmt                   *sql.Stmt
 	updatePaymentStatusStmt          *sql.Stmt
 	updateTransactionByReferenceStmt *sql.Stmt
 }
@@ -185,13 +230,18 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createPaymentStmt:                q.createPaymentStmt,
 		createPaymentDestinationStmt:     q.createPaymentDestinationStmt,
 		createTransactionStmt:            q.createTransactionStmt,
+		deleteExpiredTokensStmt:          q.deleteExpiredTokensStmt,
 		deletePaymentDestinationsStmt:    q.deletePaymentDestinationsStmt,
+		deleteTokenStmt:                  q.deleteTokenStmt,
+		deleteTokensByCredentialStmt:     q.deleteTokensByCredentialStmt,
 		getPaymentStmt:                   q.getPaymentStmt,
 		getPaymentByExternalIDStmt:       q.getPaymentByExternalIDStmt,
 		getPaymentDestinationsStmt:       q.getPaymentDestinationsStmt,
+		getTokenStmt:                     q.getTokenStmt,
 		getTransactionStmt:               q.getTransactionStmt,
 		getTransactionByReferenceStmt:    q.getTransactionByReferenceStmt,
 		getTransactionsByPaymentIDStmt:   q.getTransactionsByPaymentIDStmt,
+		storeTokenStmt:                   q.storeTokenStmt,
 		updatePaymentStatusStmt:          q.updatePaymentStatusStmt,
 		updateTransactionByReferenceStmt: q.updateTransactionByReferenceStmt,
 	}
