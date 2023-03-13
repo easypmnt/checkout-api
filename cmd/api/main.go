@@ -57,23 +57,13 @@ func main() {
 	}
 
 	// Redis connect options for asynq client
-	redisConnOpt := asynq.RedisClientOpt{
-		Network:      redisNetwork,
-		Addr:         redisConnAddr,
-		Username:     redisUsername,
-		Password:     redisPassword,
-		DB:           redisDB,
-		DialTimeout:  redisDialTimeout,
-		ReadTimeout:  redisReadTimeout,
-		WriteTimeout: redisWriteTimeout,
-		PoolSize:     redisPoolSize,
+	redisConnOpt, err := asynq.ParseRedisURI(redisConnString)
+	if err != nil {
+		logger.WithError(err).Fatal("failed to parse redis connection string")
 	}
 
 	// Init asynq client
-	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
-		Addr:     redisConnAddr,
-		PoolSize: redisPoolSize,
-	})
+	asynqClient := asynq.NewClient(redisConnOpt)
 	defer asynqClient.Close()
 
 	// Init Solana client

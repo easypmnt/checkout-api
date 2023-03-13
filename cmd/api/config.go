@@ -41,15 +41,8 @@ var (
 	dbMaxIdleConns = env.GetInt("DATABASE_IDLE_CONNS", 2)
 
 	// Redis
-	redisConnAddr     = env.MustString("REDIS_CONN_ADDR")
-	redisNetwork      = env.GetString("REDIS_NETWORK", "tcp")
-	redisUsername     = env.GetString("REDIS_USERNAME", "")
-	redisPassword     = env.GetString("REDIS_PASSWORD", "")
-	redisDB           = env.GetInt("REDIS_DB", 0)
-	redisDialTimeout  = env.GetDuration("REDIS_DIAL_TIMEOUT", 5*time.Second)
-	redisReadTimeout  = env.GetDuration("REDIS_READ_TIMEOUT", 3*time.Second)
-	redisWriteTimeout = env.GetDuration("REDIS_WRITE_TIMEOUT", 3*time.Second)
-	redisPoolSize     = env.GetInt("REDIS_POOL_SIZE", 10)
+	redisConnString = env.MustString("REDIS_DATABASE_URL")
+	redisPoolSize   = env.GetInt("REDIS_POOL_SIZE", 10)
 
 	// Auth
 	oauthSigningKey = env.MustString("OAUTH_SIGNING_KEY")
