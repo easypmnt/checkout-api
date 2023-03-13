@@ -21,12 +21,15 @@ func TestQuote(t *testing.T) {
 		OutputMint:       usdcMint,
 		Amount:           100000,
 		OnlyDirectRoutes: true,
+		SwapMode:         jupiter.SwapModeExactOut,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, quotes)
 	require.GreaterOrEqual(t, len(quotes), 1)
 
 	quote := quotes[0]
+	// utils.PrettyPrint(quote)
+
 	assert.Equal(t, wSolMint, quote.MarketInfos[0].InputMint)
 	assert.Equal(t, usdcMint, quote.MarketInfos[0].OutputMint)
 	assert.Equal(t, "100000", quote.Amount)
@@ -63,7 +66,7 @@ func TestSwap(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, swapTx)
 
-		t.Log(swapTx)
+		// t.Log(swapTx)
 	})
 }
 
@@ -79,6 +82,8 @@ func TestPrice(t *testing.T) {
 	assert.Equal(t, "So11111111111111111111111111111111111111112", price["SOL"].ID)
 	assert.Equal(t, "SOL", price["SOL"].MintSymbol)
 	assert.Equal(t, usdcMint, price["SOL"].VsToken)
+
+	// utils.PrettyPrint(price)
 }
 
 func TestRoutesMap(t *testing.T) {
@@ -88,4 +93,23 @@ func TestRoutesMap(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, routesMap)
 	assert.Greater(t, len(routesMap.GetRoutesForMint(usdcMint)), 0)
+}
+
+func TestExchangeRate(t *testing.T) {
+	c := jupiter.NewClient()
+
+	var amount uint64 = 100000
+	exchangeRate, err := c.ExchangeRate(jupiter.ExchangeRateParams{
+		InputMint:  wSolMint,
+		OutputMint: usdcMint,
+		Amount:     amount,
+		SwapMode:   jupiter.SwapModeExactOut,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, exchangeRate)
+	// utils.PrettyPrint(exchangeRate)
+
+	assert.Equal(t, wSolMint, exchangeRate.InputMint)
+	assert.Equal(t, usdcMint, exchangeRate.OutputMint)
+	assert.EqualValues(t, amount, exchangeRate.OutAmount)
 }

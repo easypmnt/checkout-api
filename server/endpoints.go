@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/easypmnt/checkout-api/internal/validator"
+	"github.com/easypmnt/checkout-api/jupiter"
 	"github.com/easypmnt/checkout-api/payment"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ type (
 		GetPaymentInfoByExternalID endpoint.Endpoint
 		GeneratePaymentLink        endpoint.Endpoint
 		GeneratePaymentTransaction endpoint.Endpoint
+		GetExchangeRate            endpoint.Endpoint
 	}
 
 	Config struct {
@@ -36,11 +38,15 @@ type (
 		GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID, currency string, applyBonus bool) (string, error)
 		GeneratePaymentTransaction(ctx context.Context, arg payment.GeneratePaymentTransactionParams) (string, error)
 	}
+
+	jupiterClient interface {
+		ExchangeRate(params jupiter.ExchangeRateParams) (jupiter.Rate, error)
+	}
 )
 
 // MakeEndpoints returns an Endpoints struct where each field is an endpoint
 // that comprises the server.
-func MakeEndpoints(ps paymentService, cfg Config) Endpoints {
+func MakeEndpoints(ps paymentService, jup jupiterClient, cfg Config) Endpoints {
 	return Endpoints{
 		GetAppInfo:                 makeGetAppInfoEndpoint(cfg),
 		CreatePayment:              makeCreatePaymentEndpoint(ps),
@@ -49,6 +55,7 @@ func MakeEndpoints(ps paymentService, cfg Config) Endpoints {
 		GetPaymentInfoByExternalID: makeGetPaymentInfoByExternalIDEndpoint(ps),
 		GeneratePaymentLink:        makeGeneratePaymentLinkEndpoint(ps),
 		GeneratePaymentTransaction: makeGeneratePaymentTransactionEndpoint(ps),
+		GetExchangeRate:            makeGetExchangeRateEndpoint(jup),
 	}
 }
 
@@ -242,5 +249,45 @@ func makeGeneratePaymentTransactionEndpoint(ps paymentService) endpoint.Endpoint
 		}
 
 		return GeneratePaymentTransactionResponse{Transaction: base64Tx}, nil
+	}
+}
+
+// GetExchangeRateRequest is the request type for the GetExchangeRate method.
+type GetExchangeRateRequest struct {
+	InCurrency  string `json:"in_currency" validate:"required" label:"In Currency"`
+	OutCurrency string `json:"out_currency" validate:"required" label:"Out Currency"`
+	Amount      uint64 `json:"amount" validate:"required|gte:0" label:"Amount"`
+	SwapMode    string `json:"swap_mode" validate:"required|oneof:ExactIn ExactOut" label:"Swap Mode"`
+}
+
+// GetExchangeRateResponse is the response type for the GetExchangeRate method.
+type GetExchangeRateResponse struct {
+	ExchangeRate jupiter.Rate `json:"exchange_rate"`
+}
+
+// makeGetExchangeRateEndpoint returns an endpoint function for the GetExchangeRate method.
+func makeGetExchangeRateEndpoint(jup jupiterClient) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		currency, ok := request.(GetExchangeRateRequest)
+		if !ok {
+			return nil, ErrInvalidRequest
+		}
+		if v := validator.ValidateStruct(currency); len(v) > 0 {
+			return nil, validator.NewValidationError(v)
+		}
+
+		rate, err := jup.ExchangeRate(jupiter.ExchangeRateParams{
+			InputMint:  currency.InCurrency,
+			OutputMint: currency.OutCurrency,
+			Amount:     currency.Amount,
+			SwapMode:   currency.SwapMode,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		return GetExchangeRateResponse{
+			ExchangeRate: rate,
+		}, nil
 	}
 }
