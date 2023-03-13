@@ -204,7 +204,7 @@ func (s *Service) CreatePayment(ctx context.Context, arg CreatePaymentParams) (u
 	}
 
 	// recalculate and sync percentage vs amount
-	if *usePercentage {
+	if usePercentage != nil && *usePercentage {
 		recTotalamount := int64(0)
 		for i := range destParams {
 			amount := int64(totalAmount * int64(destParams[i].Percentage.Int16) / 10000)

@@ -16,3 +16,12 @@ func PrettyPrint(v ...interface{}) {
 		fmt.Println(string(b))
 	}
 }
+
+// PrettyString returns the given interface in a pretty format
+func PrettyString(v interface{}) string {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(b)
+}

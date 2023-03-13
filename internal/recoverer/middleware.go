@@ -22,7 +22,7 @@ func WithLogger(log *logrus.Entry) func(next http.Handler) http.Handler {
 						log.WithFields(logrus.Fields{
 							"request_id": reqID,
 							"panic":      rvr,
-							"stack":      debug.Stack(),
+							"stack":      string(debug.Stack()),
 						}).Error("panic recovered")
 					} else {
 						middleware.PrintPrettyStack(rvr)

@@ -110,7 +110,27 @@ func makeCreatePaymentEndpoint(ps paymentService) endpoint.Endpoint {
 			return nil, validator.NewValidationError(v)
 		}
 
-		paymentID, err := ps.CreatePayment(ctx, payment.CreatePaymentParams{})
+		destinations := make([]payment.CreateDestinationParams, len(req.Destinations))
+		for i, d := range req.Destinations {
+			destinations[i] = payment.CreateDestinationParams{
+				Amount:          d.Amount,
+				Percentage:      d.Percentage,
+				WalletAddress:   d.WalletAddress,
+				ApplyBonus:      d.ApplyBonus,
+				MaxBonusAmount:  d.MaxBonusAmount,
+				MaxBonusPercent: d.MaxBonusPercent,
+			}
+		}
+
+		paymentID, err := ps.CreatePayment(ctx, payment.CreatePaymentParams{
+			ExternalID:   req.ExternalID,
+			Currency:     req.Currency,
+			Amount:       req.Amount,
+			Message:      req.Message,
+			Memo:         req.Memo,
+			TTL:          req.TTL,
+			Destinations: destinations,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +198,7 @@ func makeGetPaymentInfoByExternalIDEndpoint(ps paymentService) endpoint.Endpoint
 type GeneratePaymentLinkRequest struct {
 	PaymentID  uuid.UUID `json:"-" validate:"-" label:"Payment ID"`
 	Currency   string    `json:"currency,omitempty" validate:"-" label:"Currency"`
-	ApplyBonus string    `json:"apply_bonus,omitempty" validate:"omitempty|bool" label:"Apply Bonus"`
+	ApplyBonus string    `json:"apply_bonus,omitempty" validate:"bool" label:"Apply Bonus"`
 }
 
 // GeneratePaymentLinkResponse is the response type for the GeneratePaymentLink method.
@@ -212,7 +232,7 @@ type GeneratePaymentTransactionRequest struct {
 	PaymentID  string `json:"-" validate:"required|uuid" label:"Payment ID"`
 	Base58Addr string `json:"account" validate:"required" label:"Account public key"`
 	Currency   string `json:"-" validate:"-"`
-	ApplyBonus string `json:"-" validate:"omitempty|bool"`
+	ApplyBonus string `json:"-" validate:"bool"`
 }
 
 // GeneratePaymentTransactionResponse is the response type for the GeneratePaymentTransaction method.

@@ -36,13 +36,13 @@ var defaultCurrencies = map[string]string{
 
 // CurrencyMintAddress returns the address of the currency.
 func CurrencyMintAddress(currency string) string {
-	c := strings.ToUpper(currency)
-	if address, ok := defaultCurrencies[c]; ok {
+	if address, ok := defaultCurrencies[strings.ToUpper(currency)]; ok {
 		return address
-	} else if len(c) >= 32 {
-		return c
 	}
-	return ""
+	if len(currency) < 10 {
+		return ""
+	}
+	return currency
 }
 
 // IsSOL checks if the currency is SOL.
