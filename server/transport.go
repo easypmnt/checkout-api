@@ -95,6 +95,13 @@ func MakeHTTPHandler(e Endpoints, log logger, authMdw middlewareFunc) http.Handl
 			httpencoder.EncodeResponse,
 			options...,
 		).ServeHTTP)
+
+		r.Post("/exchange", httptransport.NewServer(
+			e.GetExchangeRate,
+			decodeGetExchangeRateRequest,
+			httpencoder.EncodeResponse,
+			options...,
+		).ServeHTTP)
 	})
 
 	return r
@@ -188,6 +195,17 @@ func decodeGeneratePaymentLinkRequest(ctx context.Context, r *http.Request) (int
 		return nil, ErrInvalidRequest
 	}
 	req.PaymentID = pid
+
+	return req, nil
+}
+
+// decodeGetExchangeRateRequest is a transport/http.DecodeRequestFunc that decodes a
+// JSON-encoded request from the HTTP request body.
+func decodeGetExchangeRateRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	var req GetExchangeRateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, fmt.Errorf("invalid request body: %w", err)
+	}
 
 	return req, nil
 }

@@ -132,6 +132,7 @@ func main() {
 		r.Mount("/payment", server.MakeHTTPHandler(
 			server.MakeEndpoints(
 				paymentService,
+				jupiterClient,
 				server.Config{
 					AppName:    productName,
 					AppIconURI: productIconURI,
