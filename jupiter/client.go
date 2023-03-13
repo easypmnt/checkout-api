@@ -250,3 +250,41 @@ func (c *Client) BestSwap(params BestSwapParams) (string, error) {
 
 	return swap, nil
 }
+
+// ExchangeRate returns the exchange rate for a given input mint, output mint and amount.
+// Default swap mode: ExactOut, so the amount is the amount of output token.
+func (c *Client) ExchangeRate(params ExchangeRateParams) (Rate, error) {
+	result := Rate{
+		InputMint:  params.InputMint,
+		OutputMint: params.OutputMint,
+	}
+	routes, err := c.Quote(QuoteParams{
+		InputMint:        params.InputMint,
+		OutputMint:       params.OutputMint,
+		Amount:           params.Amount,
+		SwapMode:         params.SwapMode,
+		OnlyDirectRoutes: false,
+	})
+	if err != nil {
+		return result, err
+	}
+
+	route, err := routes.GetBestRoute()
+	if err != nil {
+		return result, err
+	}
+
+	inAmount, err := strconv.ParseInt(route.InAmount, 10, 64)
+	if err != nil {
+		return result, fmt.Errorf("failed to parse in amount: %w", err)
+	}
+	outAmount, err := strconv.ParseInt(route.OutAmount, 10, 64)
+	if err != nil {
+		return result, fmt.Errorf("failed to parse out amount: %w", err)
+	}
+
+	result.InAmount = uint64(inAmount)
+	result.OutAmount = uint64(outAmount)
+
+	return result, nil
+}

@@ -151,3 +151,19 @@ type BestSwapParams struct {
 	OutputMint           string // output mint
 	Amount               uint64 // amount of output token
 }
+
+// ExchangeRateParams contains the parameters for the exchange rate request.
+type ExchangeRateParams struct {
+	InputMint  string // input token mint
+	OutputMint string // output token mint
+	Amount     uint64 // amount of token, depending on the swap mode
+	SwapMode   string // swap mode, default: ExactOut (Available: ExactIn, ExactOut)
+}
+
+// ExchangeRate returns the exchange rate for a given input mint, output mint and amount.
+type Rate struct {
+	InputMint  string `json:"inputMint"`  // input token mint
+	OutputMint string `json:"outputMint"` // output token mint
+	InAmount   uint64 `json:"inAmount"`   // amount of input token
+	OutAmount  uint64 `json:"outAmount"`  // amount of output token
+}
