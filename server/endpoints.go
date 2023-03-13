@@ -257,7 +257,7 @@ type GetExchangeRateRequest struct {
 	InCurrency  string `json:"in_currency" validate:"required" label:"In Currency"`
 	OutCurrency string `json:"out_currency" validate:"required" label:"Out Currency"`
 	Amount      uint64 `json:"amount" validate:"required|gte:0" label:"Amount"`
-	SwapMode    string `json:"swap_mode" validate:"required|oneof:ExactIn ExactOut" label:"Swap Mode"`
+	SwapMode    string `json:"swap_mode" validate:"required|in:ExactIn,ExactOut" label:"Swap Mode"`
 }
 
 // GetExchangeRateResponse is the response type for the GetExchangeRate method.
