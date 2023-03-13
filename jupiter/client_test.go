@@ -19,7 +19,7 @@ func TestQuote(t *testing.T) {
 	quotes, err := c.Quote(jupiter.QuoteParams{
 		InputMint:        wSolMint,
 		OutputMint:       usdcMint,
-		Amount:           1000000,
+		Amount:           100000,
 		OnlyDirectRoutes: true,
 		SwapMode:         jupiter.SwapModeExactOut,
 	})
