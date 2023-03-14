@@ -35,12 +35,15 @@ var defaultCurrencies = map[string]string{
 }
 
 // CurrencyMintAddress returns the address of the currency.
-func CurrencyMintAddress(currency string) string {
+func CurrencyMintAddress(currency string, fallback string) string {
+	if currency == "" {
+		return fallback
+	}
 	if address, ok := defaultCurrencies[strings.ToUpper(currency)]; ok {
 		return address
 	}
 	if len(currency) < 10 {
-		return ""
+		return defaultCurrencies["SOL"]
 	}
 	return currency
 }

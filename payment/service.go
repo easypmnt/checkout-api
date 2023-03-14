@@ -40,6 +40,7 @@ type (
 
 	// MerchantSettings represents default merchant settings.
 	MerchantSettings struct {
+		Currency      string // Currency is the default currency to use for the payment.
 		WalletAddress string // WalletAddress is the base58 encoded public key of the wallet to send the payment to.
 		ApplyBonus    bool   // ApplyBonus is a flag that indicates whether customer can apply bonus to the payment or not.
 		MaxBonus      uint64 // MaxBonus is the maximum amount of bonus that can be applied to the payment.
@@ -96,6 +97,9 @@ func NewService(repo paymentRepository, sol solanaClient, jup jupiterClient, opt
 			s.defaultMerchantSettings.ApplyBonus = false
 		}
 	}
+	if s.defaultMerchantSettings.Currency == "" {
+		s.defaultMerchantSettings.Currency = "SOL"
+	}
 	return s
 }
 
@@ -125,7 +129,7 @@ type (
 // It returns the created payment id and an error if any.
 // TODO: refactor this function, it is too long.
 func (s *Service) CreatePayment(ctx context.Context, arg CreatePaymentParams) (uuid.UUID, error) {
-	arg.Currency = CurrencyMintAddress(arg.Currency)
+	arg.Currency = CurrencyMintAddress(arg.Currency, s.defaultMerchantSettings.Currency)
 	if arg.Currency == "" {
 		return uuid.Nil, fmt.Errorf("currency is required")
 	}
@@ -330,7 +334,7 @@ func (s *Service) GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID, 
 		return "", fmt.Errorf("payment status is not new")
 	}
 
-	currency = CurrencyMintAddress(currency)
+	currency = CurrencyMintAddress(currency, payment.Currency)
 
 	uri, err := url.Parse(fmt.Sprintf("%s/%s", s.solanaPayBaseURI, paymentID))
 	if err != nil {
@@ -338,7 +342,7 @@ func (s *Service) GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID, 
 	}
 
 	q := uri.Query()
-	q.Set("applyBonus", strconv.FormatBool(applyBonus))
+	q.Set("apply_bonus", strconv.FormatBool(applyBonus))
 	if currency != "" {
 		q.Set("currency", currency)
 	}
@@ -370,7 +374,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		return "", fmt.Errorf("payment status is not new")
 	}
 
-	arg.Currency = CurrencyMintAddress(arg.Currency)
+	arg.Currency = CurrencyMintAddress(arg.Currency, payment.Payment.Currency)
 
 	utils.PrettyPrint("payment", payment, "arg", arg)
 
