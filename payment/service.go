@@ -438,9 +438,14 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		txBuilder = txBuilder.AddRawInstructionsToBeginning(jtx.Message.DecompileInstructions()...)
 	}
 
+	payment = s.prepareDestinationsAmount(payment)
+
 	// Transfer payment amount to the merchants.
 	if IsSOL(payment.Payment.Currency) {
 		for _, dest := range payment.Destinations {
+			if dest.TotalAmount == 0 {
+				continue
+			}
 			txBuilder = txBuilder.AddInstruction(solana.TransferSOL(solana.TransferSOLParams{
 				Sender:    arg.Base58Addr,
 				Recipient: dest.Destination,
@@ -450,6 +455,9 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		}
 	} else {
 		for _, dest := range payment.Destinations {
+			if dest.TotalAmount == 0 {
+				continue
+			}
 			txBuilder = txBuilder.AddInstruction(solana.TransferToken(solana.TransferTokenParam{
 				Sender:    arg.Base58Addr,
 				Recipient: dest.Destination,
@@ -707,4 +715,21 @@ func (s *Service) CheckPaymentStatus(ctx context.Context, reference string) (str
 	}
 
 	return string(transaction.Status), nil
+}
+
+// prepare destinations for payment
+func (s *Service) prepareDestinationsAmount(payment repository.PaymentInfo) repository.PaymentInfo {
+	if len(payment.Destinations) == 0 {
+		return payment
+	}
+
+	for i := range payment.Destinations {
+		if payment.Destinations[i].Amount.Valid {
+			payment.Destinations[i].TotalAmount = payment.Destinations[i].Amount.Int64
+		} else if payment.Destinations[i].Percentage.Valid {
+			payment.Destinations[i].TotalAmount = int64(float64(payment.Payment.TotalAmount) * float64(payment.Destinations[i].Percentage.Int16) / 10000)
+		}
+	}
+
+	return payment
 }
