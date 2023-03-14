@@ -39,14 +39,14 @@ func MakeHTTPHandler(e Endpoints, log logger, authMdw middlewareFunc) http.Handl
 		r.Get("/checkout/{payment_id}", httptransport.NewServer(
 			e.GetAppInfo,
 			decodeGetAppInfoRequest,
-			httpencoder.EncodeResponse,
+			httpencoder.EncodeResponseAsIs,
 			options...,
 		).ServeHTTP)
 
 		r.Post("/checkout/{payment_id}", httptransport.NewServer(
 			e.GeneratePaymentTransaction,
 			decodeGeneratePaymentTransactionRequest,
-			httpencoder.EncodeResponse,
+			httpencoder.EncodeResponseAsIs,
 			options...,
 		).ServeHTTP)
 	})

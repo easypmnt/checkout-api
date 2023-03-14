@@ -37,7 +37,7 @@ type (
 		GetPaymentInfo(ctx context.Context, paymentID uuid.UUID) (*payment.Payment, error)
 		GetPaymentInfoByExternalID(ctx context.Context, externalID string) (*payment.Payment, error)
 		GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID, currency string, applyBonus bool) (string, error)
-		GeneratePaymentTransaction(ctx context.Context, arg payment.GeneratePaymentTransactionParams) (string, error)
+		GeneratePaymentTransaction(ctx context.Context, arg payment.GeneratePaymentTransactionParams) (payment.GeneratePaymentTransactionResult, error)
 	}
 
 	jupiterClient interface {
@@ -240,6 +240,7 @@ type GeneratePaymentTransactionRequest struct {
 // GeneratePaymentTransactionResponse is the response type for the GeneratePaymentTransaction method.
 type GeneratePaymentTransactionResponse struct {
 	Transaction string `json:"transaction"`
+	Message     string `json:"message,omitempty"`
 }
 
 // makeGeneratePaymentTransactionEndpoint returns an endpoint function for the GeneratePaymentTransaction method.
@@ -262,7 +263,7 @@ func makeGeneratePaymentTransactionEndpoint(ps paymentService) endpoint.Endpoint
 
 		applyBonus, _ := strconv.ParseBool(req.ApplyBonus)
 
-		base64Tx, err := ps.GeneratePaymentTransaction(ctx, payment.GeneratePaymentTransactionParams{
+		result, err := ps.GeneratePaymentTransaction(ctx, payment.GeneratePaymentTransactionParams{
 			PaymentID:  paymentID,
 			Base58Addr: req.Base58Addr,
 			Currency:   req.Currency,
@@ -272,7 +273,10 @@ func makeGeneratePaymentTransactionEndpoint(ps paymentService) endpoint.Endpoint
 			return nil, err
 		}
 
-		return GeneratePaymentTransactionResponse{Transaction: base64Tx}, nil
+		return GeneratePaymentTransactionResponse{
+			Transaction: result.Transaction,
+			Message:     result.Message,
+		}, nil
 	}
 }
 

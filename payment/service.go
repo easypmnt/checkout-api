@@ -359,19 +359,25 @@ type GeneratePaymentTransactionParams struct {
 	ApplyBonus bool      // optional; whether to apply bonus to the payment, if it exists on customer wallet. Default is false
 }
 
+// GeneratePaymentTransactionResult contains the result of generating a payment transaction.
+type GeneratePaymentTransactionResult struct {
+	Transaction string
+	Message     string
+}
+
 // GeneratePaymentTransaction generates a payment transaction for the given payment id.
 // Returns base64 encoded transaction and an error if any.
 // TODO: refactor this function, it's too long.
-func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePaymentTransactionParams) (string, error) {
+func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePaymentTransactionParams) (GeneratePaymentTransactionResult, error) {
 	payment, err := s.repo.GetPaymentInfo(ctx, arg.PaymentID)
 	if err != nil {
-		return "", fmt.Errorf("failed to get payment: %w", err)
+		return GeneratePaymentTransactionResult{}, fmt.Errorf("failed to get payment: %w", err)
 	}
 	if payment.Payment.ExpiresAt.Valid && payment.Payment.ExpiresAt.Time.Before(time.Now()) {
-		return "", fmt.Errorf("payment is expired")
+		return GeneratePaymentTransactionResult{}, fmt.Errorf("payment is expired")
 	}
 	if payment.Payment.Status != repository.PaymentStatusNew && payment.Payment.Status != repository.PaymentStatusFailed {
-		return "", fmt.Errorf("payment status is not new")
+		return GeneratePaymentTransactionResult{}, fmt.Errorf("payment status is not new")
 	}
 
 	arg.Currency = CurrencyMintAddress(arg.Currency, payment.Payment.Currency)
@@ -391,7 +397,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		// Recalculate payment amounts with bonus.
 		payment, bonusAmount, err = s.recalculatePaymentWithBonus(ctx, payment, bonusBalance)
 		if err != nil {
-			return "", fmt.Errorf("failed to recalculate payment with bonus: %w", err)
+			return GeneratePaymentTransactionResult{}, fmt.Errorf("failed to recalculate payment with bonus: %w", err)
 		}
 
 		// Burn applied bonus amount.
@@ -408,7 +414,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		if amount > 0 {
 			authAcc, err := types.AccountFromBase58(s.defaultMerchantSettings.BonusMintAuth)
 			if err != nil {
-				return "", fmt.Errorf("failed to decode bonus mint auth account: %w", err)
+				return GeneratePaymentTransactionResult{}, fmt.Errorf("failed to decode bonus mint auth account: %w", err)
 			}
 			txBuilder = txBuilder.AddInstruction(solana.MintFungibleToken(solana.MintFungibleTokenParams{
 				Funder:    arg.Base58Addr,
@@ -429,11 +435,11 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 			Amount:        uint64(payment.Payment.TotalAmount - bonusAmount),
 		})
 		if err != nil {
-			return "", fmt.Errorf("failed to get best swap transaction: %w", err)
+			return GeneratePaymentTransactionResult{}, fmt.Errorf("failed to get best swap transaction: %w", err)
 		}
 		jtx, err := solana.DecodeTransaction(jupTx)
 		if err != nil {
-			return "", fmt.Errorf("failed to decode jupiter transaction: %w", err)
+			return GeneratePaymentTransactionResult{}, fmt.Errorf("failed to decode jupiter transaction: %w", err)
 		}
 		txBuilder = txBuilder.AddRawInstructionsToBeginning(jtx.Message.DecompileInstructions()...)
 	}
@@ -474,7 +480,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		if amount > 0 {
 			authAcc, err := types.AccountFromBase58(s.defaultMerchantSettings.BonusMintAuth)
 			if err != nil {
-				return "", fmt.Errorf("failed to decode bonus mint auth account: %w", err)
+				return GeneratePaymentTransactionResult{}, fmt.Errorf("failed to decode bonus mint auth account: %w", err)
 			}
 			txBuilder = txBuilder.AddInstruction(solana.MintFungibleToken(solana.MintFungibleTokenParams{
 				Funder:    arg.Base58Addr,
@@ -493,7 +499,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 	// Build transaction.
 	base64Tx, err := txBuilder.Build(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to build transaction: %w", err)
+		return GeneratePaymentTransactionResult{}, fmt.Errorf("failed to build transaction: %w", err)
 	}
 
 	// Create transaction in the database.
@@ -523,7 +529,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 			return result
 		}(payment.Destinations),
 	}); err != nil {
-		return "", fmt.Errorf("failed to create transaction: %w", err)
+		return GeneratePaymentTransactionResult{}, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
 	if s.webhook != nil {
@@ -543,7 +549,15 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		s.event.Subscribe(referenceAcc.PublicKey.ToBase58())
 	}
 
-	return base64Tx, nil
+	msg := payment.Payment.Message.String
+	if msg == "" {
+		msg = fmt.Sprintf("Payment for %s", payment.Payment.ExternalID.String)
+	}
+
+	return GeneratePaymentTransactionResult{
+		Transaction: base64Tx,
+		Message:     msg,
+	}, nil
 }
 
 // Check if customer has enough balance.

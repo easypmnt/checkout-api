@@ -61,6 +61,28 @@ func EncodeResponse(_ context.Context, w http.ResponseWriter, response interface
 	return json.NewEncoder(w).Encode(Response{Data: response})
 }
 
+// EncodeResponse is the common method to encode all response types to the
+// client. I chose to do it this way because, since we're using JSON, there's no
+// reason to provide anything more specific. It's certainly possible to
+// specialize on a per-response (per-method) basis.
+func EncodeResponseAsIs(_ context.Context, w http.ResponseWriter, response interface{}) error {
+	w.Header().Set(ContentTypeHeader, ContentType)
+
+	if response == nil {
+		w.WriteHeader(http.StatusCreated)
+		return nil
+	}
+
+	switch r := response.(type) {
+	case Response, BoolResultResponse, ListResponse:
+		return json.NewEncoder(w).Encode(response)
+	case bool:
+		return json.NewEncoder(w).Encode(BoolResult(r))
+	}
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 // BoolResult response helper
 func BoolResult(result bool) BoolResultResponse {
 	return BoolResultResponse{Result: result}
