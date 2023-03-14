@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/easypmnt/checkout-api/internal/httpencoder"
+	"github.com/easypmnt/checkout-api/internal/utils"
 	"github.com/easypmnt/checkout-api/internal/validator"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-kit/kit/transport"
@@ -135,6 +136,8 @@ func decodeGeneratePaymentTransactionRequest(ctx context.Context, r *http.Reques
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, err
 	}
+
+	utils.PrettyPrint("decodeGeneratePaymentTransactionRequest", r.URL.String())
 
 	req.PaymentID = chi.URLParam(r, "payment_id")
 	req.Currency = r.URL.Query().Get("currency")
