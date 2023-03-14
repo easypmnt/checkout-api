@@ -393,12 +393,14 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 	if arg.ApplyBonus && s.defaultMerchantSettings.ApplyBonus {
 		// Check if customer has bonus balance.
 		bonusBalance, _ := s.solClient.GetTokenBalance(ctx, arg.Base58Addr, s.defaultMerchantSettings.BonusMintAddr)
+		utils.PrettyPrint("bonusBalance", bonusBalance)
 
 		// Recalculate payment amounts with bonus.
 		payment, bonusAmount, err = s.recalculatePaymentWithBonus(ctx, payment, bonusBalance)
 		if err != nil {
 			return GeneratePaymentTransactionResult{}, fmt.Errorf("failed to recalculate payment with bonus: %w", err)
 		}
+		utils.PrettyPrint("payment", payment, "bonusAmount", bonusAmount)
 
 		// Burn applied bonus amount.
 		if bonusAmount > 0 {
@@ -408,26 +410,11 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 				Amount:            uint64(bonusAmount),
 			}))
 		}
-
-		// Accrue bonus tokens for the current payment.
-		amount := (payment.Payment.TotalAmount - bonusAmount) / int64(s.defaultMerchantSettings.BonusRate)
-		if amount > 0 {
-			authAcc, err := types.AccountFromBase58(s.defaultMerchantSettings.BonusMintAuth)
-			if err != nil {
-				return GeneratePaymentTransactionResult{}, fmt.Errorf("failed to decode bonus mint auth account: %w", err)
-			}
-			txBuilder = txBuilder.AddInstruction(solana.MintFungibleToken(solana.MintFungibleTokenParams{
-				Funder:    arg.Base58Addr,
-				Mint:      s.defaultMerchantSettings.BonusMintAddr,
-				MintOwner: authAcc.PublicKey.ToBase58(),
-				MintTo:    arg.Base58Addr,
-				Amount:    uint64(amount),
-			})).AddSigner(authAcc)
-		}
 	}
 
 	// Convert payment amount to the currency of the merchant.
 	if arg.Currency != payment.Payment.Currency {
+		utils.PrettyPrint("Convert payment amount to the currency of the merchant", arg.Currency, payment.Payment.Currency)
 		jupTx, err := s.jupClient.BestSwap(jupiter.BestSwapParams{
 			UserPublicKey: arg.Base58Addr,
 			InputMint:     arg.Currency,
@@ -448,6 +435,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 
 	// Transfer payment amount to the merchants.
 	if IsSOL(payment.Payment.Currency) {
+		utils.PrettyPrint("Transfer SOL payment amount to the merchants")
 		for _, dest := range payment.Destinations {
 			if dest.TotalAmount == 0 {
 				continue
@@ -460,6 +448,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 			}))
 		}
 	} else {
+		utils.PrettyPrint("Transfer token payment amount to the merchants")
 		for _, dest := range payment.Destinations {
 			if dest.TotalAmount == 0 {
 				continue
@@ -478,6 +467,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 	if arg.ApplyBonus && s.defaultMerchantSettings.ApplyBonus {
 		amount := (payment.Payment.TotalAmount - bonusAmount) / int64(s.defaultMerchantSettings.BonusRate)
 		if amount > 0 {
+			utils.PrettyPrint("Accrue bonus amount", amount)
 			authAcc, err := types.AccountFromBase58(s.defaultMerchantSettings.BonusMintAuth)
 			if err != nil {
 				return GeneratePaymentTransactionResult{}, fmt.Errorf("failed to decode bonus mint auth account: %w", err)
@@ -493,6 +483,7 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 	}
 
 	if payment.Payment.Memo.Valid {
+		utils.PrettyPrint("Add memo to the transaction", payment.Payment.Memo.String)
 		txBuilder = txBuilder.AddInstruction(solana.Memo(payment.Payment.Memo.String))
 	}
 
