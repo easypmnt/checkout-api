@@ -51,7 +51,7 @@ func CurrencyMintAddress(currency string, fallback string) string {
 // IsSOL checks if the currency is SOL.
 func IsSOL(currency string) bool {
 	c := strings.ToUpper(currency)
-	return c == "SOL" || defaultCurrencies["SOL"] == c
+	return c == "SOL" || defaultCurrencies["SOL"] == currency
 }
 
 type (
