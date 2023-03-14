@@ -123,8 +123,10 @@ func (q *QueriesTx) CreateTransactionWithCallback(ctx context.Context, arg Creat
 		return Transaction{}, fmt.Errorf("failed to update payment status: %w", err)
 	}
 
-	if err := arg.Callback(); err != nil {
-		return Transaction{}, fmt.Errorf("failed to execute callback: %w", err)
+	if arg.Callback != nil {
+		if err := arg.Callback(); err != nil {
+			return Transaction{}, fmt.Errorf("failed to execute callback: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
