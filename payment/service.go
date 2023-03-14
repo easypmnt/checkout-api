@@ -372,6 +372,8 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 
 	arg.Currency = CurrencyMintAddress(arg.Currency)
 
+	utils.PrettyPrint("payment", payment, "arg", arg)
+
 	var (
 		referenceAcc = types.NewAccount()
 		txBuilder    = solana.NewTransactionBuilder(s.solClient).SetFeePayer(arg.Base58Addr)
@@ -411,18 +413,6 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 				MintTo:    arg.Base58Addr,
 				Amount:    uint64(amount),
 			})).AddSigner(authAcc)
-		}
-	}
-
-	if arg.Currency == payment.Payment.Currency {
-		// Check if customer has enough balance.
-		if err := s.checkBalance(
-			ctx,
-			arg.Base58Addr,
-			arg.Currency,
-			uint64(payment.Payment.TotalAmount-bonusAmount),
-		); err != nil {
-			return "", err
 		}
 	}
 
