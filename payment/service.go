@@ -486,6 +486,10 @@ func (s *Service) GeneratePaymentTransaction(ctx context.Context, arg GeneratePa
 		}
 	}
 
+	if payment.Payment.Memo.Valid {
+		txBuilder = txBuilder.AddInstruction(solana.Memo(payment.Payment.Memo.String))
+	}
+
 	// Build transaction.
 	base64Tx, err := txBuilder.Build(ctx)
 	if err != nil {
