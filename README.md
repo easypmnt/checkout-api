@@ -1,5 +1,7 @@
 # checkout-api
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/easypmnt/checkout-api.svg)](https://pkg.go.dev/github.com/easypmnt/checkout-api)
+[![Go Report Card](https://goreportcard.com/badge/github.com/easypmnt/checkout-api)](https://goreportcard.com/report/github.com/easypmnt/checkout-api)
 [![Tests](https://github.com/easypmnt/checkout-api/actions/workflows/tests.yml/badge.svg)](https://github.com/easypmnt/checkout-api/actions/workflows/tests.yml)
 [![License](https://img.shields.io/github/license/easypmnt/checkout-api)](https://github.com/easypmnt/checkout-api/blob/main/LICENSE)
 
