@@ -31,6 +31,7 @@ func (e Event) MapToSseEvent() sse.Event {
 		Id:    id,
 		Event: "message",
 		Data:  e.Data,
+		Retry: 500,
 	}
 }
 

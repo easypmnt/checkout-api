@@ -9,7 +9,7 @@ require (
 	github.com/dustin/go-broadcast v0.0.0-20211018055107-71439988bd91
 	github.com/everFinance/goar v1.5.2
 	github.com/fatih/color v1.15.0
-	github.com/gin-contrib/sse v0.1.0
+	github.com/gin-contrib/sse v0.1.1-0.20230214053213-e597170caac8
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/oauth v0.0.0-20210913085627-d937e221b3ef
