@@ -13,6 +13,18 @@ const (
 	TransactionUpdated   EventName = "transaction.updated"
 )
 
+var AllEvents = []EventName{
+	PaymentCreated,
+	PaymentProcessing,
+	PaymentCancelled,
+	PaymentFailed,
+	PaymentExpired,
+	PaymentSucceeded,
+	PaymentLinkGenerated,
+	TransactionCreated,
+	TransactionUpdated,
+}
+
 // Event payloads.
 type (
 	PaymentCreatedPayload struct {

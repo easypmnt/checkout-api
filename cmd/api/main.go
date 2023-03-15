@@ -91,7 +91,6 @@ func main() {
 
 	// webhook enqueuer
 	webhookEnqueuer := webhook.NewEnqueuer(asynqClient)
-	_ = webhookEnqueuer
 
 	// Payment worker enqueuer
 	paymentEnqueuer := payments.NewEnqueuer(asynqClient)
@@ -132,6 +131,11 @@ func main() {
 
 	// Event listener
 	eventEmitter.On(events.TransactionUpdated, payments.UpdateTransactionStatusListener(paymentService))
+	eventEmitter.On(events.TransactionCreated, payments.TransactionCreatedListener(paymentService, paymentEnqueuer))
+	eventEmitter.ListenEvents(
+		webhook.TranslateEventsToWebhookEvents(webhookEnqueuer),
+		events.AllEvents...,
+	)
 
 	// Mount HTTP endpoints
 	{

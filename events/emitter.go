@@ -15,6 +15,8 @@ type (
 		Emit(EventName, interface{})
 		// On registers a listener for the given event name.
 		On(EventName, ...Listener)
+		// OnMany registers a listener for the given event names.
+		ListenEvents(Listener, ...EventName)
 	}
 
 	// Logger is an interface that allows to log events.
@@ -63,4 +65,14 @@ func (e *emitter) On(name EventName, listeners ...Listener) {
 	defer e.Unlock()
 
 	e.listeners[name] = append(e.listeners[name], listeners...)
+}
+
+// ListenEvents registers a listener for the given event names.
+func (e *emitter) ListenEvents(listener Listener, names ...EventName) {
+	e.Lock()
+	defer e.Unlock()
+
+	for _, name := range names {
+		e.listeners[name] = append(e.listeners[name], listener)
+	}
 }
