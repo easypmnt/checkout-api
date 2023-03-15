@@ -26,7 +26,7 @@ type (
 func MakeHTTPHandler(s sseServer, log logger) http.Handler {
 	r := chi.NewRouter()
 
-	r.Get("/channel/{channel}", subscribeToChannel(s, log))
+	r.HandleFunc("/channel/{channel}", subscribeToChannel(s, log))
 
 	return r
 }
