@@ -115,18 +115,21 @@ func (b *EventBroadcaster) handleWebSocket(w http.ResponseWriter, r *http.Reques
 		conn.Close()
 	}()
 
-	for {
-		select {
-		case <-r.Context().Done():
-			b.log.Infof("event Broadcaster: websocket connection closed by client")
-			return
-		default:
-			if _, _, err := conn.ReadMessage(); err != nil {
-				log.Printf("error reading message from websocket: %v", err)
-				break
-			}
-		}
-	}
+	<-r.Context().Done()
+	b.log.Infof("event Broadcaster: websocket connection closed by client")
+
+	// for {
+	// 	select {
+	// 	case <-r.Context().Done():
+	// 		b.log.Infof("event Broadcaster: websocket connection closed by client")
+	// 		return
+	// 	default:
+	// 		if _, _, err := conn.ReadMessage(); err != nil {
+	// 			log.Printf("error reading message from websocket: %v", err)
+	// 			break
+	// 		}
+	// 	}
+	// }
 }
 
 func newChannelHub() *channelHub {
