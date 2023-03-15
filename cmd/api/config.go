@@ -66,9 +66,12 @@ var (
 
 	// Merchant
 	merchantWalletAddress      = env.MustString("MERCHANT_WALLET_ADDRESS")
+	merchantDefaultMint        = env.GetString("MERCHANT_DEFAULT_MINT", "SOL")
 	merchantApplyBonus         = env.GetBool("MERCHANT_APPLY_BONUS", true)
 	merchantMaxBonusPercentage = env.GetInt[int16]("MERCHANT_MAX_BONUS_PERCENTAGE", 5000)
-	bonusMintAddress           = env.MustString("BONUS_MINT_ADDRESS")
-	bonusMintAuthority         = env.MustString("BONUS_MINT_AUTHORITY")
+	maxApplyBonusAmount        = env.GetInt[int64]("MAX_APPLY_BONUS_AMOUNT", 10000000000)
+	bonusMintAddress           = env.GetString("BONUS_MINT_ADDRESS", "")
+	bonusMintAuthority         = env.GetString("BONUS_MINT_AUTHORITY", "")
 	bonusRate                  = env.GetInt[int64]("BONUS_RATE", 100)
+	paymentTTL                 = env.GetDuration("PAYMENT_TTL", time.Minute*15)
 )

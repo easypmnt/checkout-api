@@ -13,40 +13,56 @@ import (
 )
 
 const createPayment = `-- name: CreatePayment :one
-INSERT INTO payments (external_id, currency, total_amount, status, message, memo, expires_at) 
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, external_id, currency, total_amount, status, message, memo, expires_at, created_at, updated_at
+INSERT INTO payments (
+    external_id, 
+    destination_wallet, 
+    destination_mint,
+    amount, 
+    status, 
+    message, 
+    expires_at
+) 
+VALUES (
+    $1, 
+    $2, 
+    $3,
+    $4, 
+    $5, 
+    $6, 
+    $7
+)
+RETURNING id, external_id, destination_wallet, destination_mint, amount, status, message, expires_at, created_at, updated_at
 `
 
 type CreatePaymentParams struct {
-	ExternalID  sql.NullString `json:"external_id"`
-	Currency    string         `json:"currency"`
-	TotalAmount int64          `json:"total_amount"`
-	Status      PaymentStatus  `json:"status"`
-	Message     sql.NullString `json:"message"`
-	Memo        sql.NullString `json:"memo"`
-	ExpiresAt   sql.NullTime   `json:"expires_at"`
+	ExternalID        sql.NullString `json:"external_id"`
+	DestinationWallet string         `json:"destination_wallet"`
+	DestinationMint   string         `json:"destination_mint"`
+	Amount            int64          `json:"amount"`
+	Status            PaymentStatus  `json:"status"`
+	Message           sql.NullString `json:"message"`
+	ExpiresAt         sql.NullTime   `json:"expires_at"`
 }
 
 func (q *Queries) CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error) {
 	row := q.queryRow(ctx, q.createPaymentStmt, createPayment,
 		arg.ExternalID,
-		arg.Currency,
-		arg.TotalAmount,
+		arg.DestinationWallet,
+		arg.DestinationMint,
+		arg.Amount,
 		arg.Status,
 		arg.Message,
-		arg.Memo,
 		arg.ExpiresAt,
 	)
 	var i Payment
 	err := row.Scan(
 		&i.ID,
 		&i.ExternalID,
-		&i.Currency,
-		&i.TotalAmount,
+		&i.DestinationWallet,
+		&i.DestinationMint,
+		&i.Amount,
 		&i.Status,
 		&i.Message,
-		&i.Memo,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -54,62 +70,8 @@ func (q *Queries) CreatePayment(ctx context.Context, arg CreatePaymentParams) (P
 	return i, err
 }
 
-const createPaymentDestination = `-- name: CreatePaymentDestination :one
-INSERT INTO payment_destinations (payment_id, destination, amount, percentage, total_amount, discount_amount, apply_bonus, max_bonus_amount, max_bonus_percentage)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING payment_id, destination, amount, percentage, total_amount, discount_amount, apply_bonus, max_bonus_amount, max_bonus_percentage
-`
-
-type CreatePaymentDestinationParams struct {
-	PaymentID          uuid.UUID     `json:"payment_id"`
-	Destination        string        `json:"destination"`
-	Amount             sql.NullInt64 `json:"amount"`
-	Percentage         sql.NullInt16 `json:"percentage"`
-	TotalAmount        int64         `json:"total_amount"`
-	DiscountAmount     int64         `json:"discount_amount"`
-	ApplyBonus         bool          `json:"apply_bonus"`
-	MaxBonusAmount     int64         `json:"max_bonus_amount"`
-	MaxBonusPercentage int16         `json:"max_bonus_percentage"`
-}
-
-func (q *Queries) CreatePaymentDestination(ctx context.Context, arg CreatePaymentDestinationParams) (PaymentDestination, error) {
-	row := q.queryRow(ctx, q.createPaymentDestinationStmt, createPaymentDestination,
-		arg.PaymentID,
-		arg.Destination,
-		arg.Amount,
-		arg.Percentage,
-		arg.TotalAmount,
-		arg.DiscountAmount,
-		arg.ApplyBonus,
-		arg.MaxBonusAmount,
-		arg.MaxBonusPercentage,
-	)
-	var i PaymentDestination
-	err := row.Scan(
-		&i.PaymentID,
-		&i.Destination,
-		&i.Amount,
-		&i.Percentage,
-		&i.TotalAmount,
-		&i.DiscountAmount,
-		&i.ApplyBonus,
-		&i.MaxBonusAmount,
-		&i.MaxBonusPercentage,
-	)
-	return i, err
-}
-
-const deletePaymentDestinations = `-- name: DeletePaymentDestinations :exec
-DELETE FROM payment_destinations WHERE payment_id = $1
-`
-
-func (q *Queries) DeletePaymentDestinations(ctx context.Context, paymentID uuid.UUID) error {
-	_, err := q.exec(ctx, q.deletePaymentDestinationsStmt, deletePaymentDestinations, paymentID)
-	return err
-}
-
 const getPayment = `-- name: GetPayment :one
-SELECT id, external_id, currency, total_amount, status, message, memo, expires_at, created_at, updated_at FROM payments WHERE id = $1
+SELECT id, external_id, destination_wallet, destination_mint, amount, status, message, expires_at, created_at, updated_at FROM payments WHERE id = $1
 `
 
 func (q *Queries) GetPayment(ctx context.Context, id uuid.UUID) (Payment, error) {
@@ -118,11 +80,11 @@ func (q *Queries) GetPayment(ctx context.Context, id uuid.UUID) (Payment, error)
 	err := row.Scan(
 		&i.ID,
 		&i.ExternalID,
-		&i.Currency,
-		&i.TotalAmount,
+		&i.DestinationWallet,
+		&i.DestinationMint,
+		&i.Amount,
 		&i.Status,
 		&i.Message,
-		&i.Memo,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -131,7 +93,7 @@ func (q *Queries) GetPayment(ctx context.Context, id uuid.UUID) (Payment, error)
 }
 
 const getPaymentByExternalID = `-- name: GetPaymentByExternalID :one
-SELECT id, external_id, currency, total_amount, status, message, memo, expires_at, created_at, updated_at FROM payments WHERE external_id = $1::VARCHAR
+SELECT id, external_id, destination_wallet, destination_mint, amount, status, message, expires_at, created_at, updated_at FROM payments WHERE external_id = $1::VARCHAR
 `
 
 func (q *Queries) GetPaymentByExternalID(ctx context.Context, externalID string) (Payment, error) {
@@ -140,11 +102,11 @@ func (q *Queries) GetPaymentByExternalID(ctx context.Context, externalID string)
 	err := row.Scan(
 		&i.ID,
 		&i.ExternalID,
-		&i.Currency,
-		&i.TotalAmount,
+		&i.DestinationWallet,
+		&i.DestinationMint,
+		&i.Amount,
 		&i.Status,
 		&i.Message,
-		&i.Memo,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -152,45 +114,17 @@ func (q *Queries) GetPaymentByExternalID(ctx context.Context, externalID string)
 	return i, err
 }
 
-const getPaymentDestinations = `-- name: GetPaymentDestinations :many
-SELECT payment_id, destination, amount, percentage, total_amount, discount_amount, apply_bonus, max_bonus_amount, max_bonus_percentage FROM payment_destinations WHERE payment_id = $1
+const markPaymentsExpired = `-- name: MarkPaymentsExpired :exec
+UPDATE payments SET status = 'expired'::payment_status WHERE expires_at < NOW() AND status = 'pending'::payment_status
 `
 
-func (q *Queries) GetPaymentDestinations(ctx context.Context, paymentID uuid.UUID) ([]PaymentDestination, error) {
-	rows, err := q.query(ctx, q.getPaymentDestinationsStmt, getPaymentDestinations, paymentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []PaymentDestination
-	for rows.Next() {
-		var i PaymentDestination
-		if err := rows.Scan(
-			&i.PaymentID,
-			&i.Destination,
-			&i.Amount,
-			&i.Percentage,
-			&i.TotalAmount,
-			&i.DiscountAmount,
-			&i.ApplyBonus,
-			&i.MaxBonusAmount,
-			&i.MaxBonusPercentage,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) MarkPaymentsExpired(ctx context.Context) error {
+	_, err := q.exec(ctx, q.markPaymentsExpiredStmt, markPaymentsExpired)
+	return err
 }
 
 const updatePaymentStatus = `-- name: UpdatePaymentStatus :one
-UPDATE payments SET status = $1 WHERE id = $2 RETURNING id, external_id, currency, total_amount, status, message, memo, expires_at, created_at, updated_at
+UPDATE payments SET status = $1 WHERE id = $2 RETURNING id, external_id, destination_wallet, destination_mint, amount, status, message, expires_at, created_at, updated_at
 `
 
 type UpdatePaymentStatusParams struct {
@@ -204,11 +138,11 @@ func (q *Queries) UpdatePaymentStatus(ctx context.Context, arg UpdatePaymentStat
 	err := row.Scan(
 		&i.ID,
 		&i.ExternalID,
-		&i.Currency,
-		&i.TotalAmount,
+		&i.DestinationWallet,
+		&i.DestinationMint,
+		&i.Amount,
 		&i.Status,
 		&i.Message,
-		&i.Memo,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,

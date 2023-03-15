@@ -13,25 +13,69 @@ import (
 )
 
 const createTransaction = `-- name: CreateTransaction :one
-INSERT INTO transactions (payment_id, reference, amount, discount_amount, status) 
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, payment_id, reference, amount, discount_amount, tx_signature, status, created_at, updated_at
+INSERT INTO transactions (
+    payment_id, 
+    reference, 
+    source_wallet,
+    source_mint,
+    destination_wallet,
+    destination_mint,
+    amount, 
+    discount_amount, 
+    total_amount,
+    message,
+    memo,
+    apply_bonus,
+    status
+) 
+VALUES (
+    $1, 
+    $2, 
+    $3,
+    $4,
+    $5,
+    $6,
+    $7, 
+    $8, 
+    $9,
+    $10,
+    $11,
+    $12,
+    $13
+)
+RETURNING id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at
 `
 
 type CreateTransactionParams struct {
-	PaymentID      uuid.UUID         `json:"payment_id"`
-	Reference      string            `json:"reference"`
-	Amount         int64             `json:"amount"`
-	DiscountAmount int64             `json:"discount_amount"`
-	Status         TransactionStatus `json:"status"`
+	PaymentID         uuid.UUID         `json:"payment_id"`
+	Reference         string            `json:"reference"`
+	SourceWallet      string            `json:"source_wallet"`
+	SourceMint        string            `json:"source_mint"`
+	DestinationWallet string            `json:"destination_wallet"`
+	DestinationMint   string            `json:"destination_mint"`
+	Amount            int64             `json:"amount"`
+	DiscountAmount    int64             `json:"discount_amount"`
+	TotalAmount       int64             `json:"total_amount"`
+	Message           sql.NullString    `json:"message"`
+	Memo              sql.NullString    `json:"memo"`
+	ApplyBonus        sql.NullBool      `json:"apply_bonus"`
+	Status            TransactionStatus `json:"status"`
 }
 
 func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error) {
 	row := q.queryRow(ctx, q.createTransactionStmt, createTransaction,
 		arg.PaymentID,
 		arg.Reference,
+		arg.SourceWallet,
+		arg.SourceMint,
+		arg.DestinationWallet,
+		arg.DestinationMint,
 		arg.Amount,
 		arg.DiscountAmount,
+		arg.TotalAmount,
+		arg.Message,
+		arg.Memo,
+		arg.ApplyBonus,
 		arg.Status,
 	)
 	var i Transaction
@@ -39,8 +83,16 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		&i.ID,
 		&i.PaymentID,
 		&i.Reference,
+		&i.SourceWallet,
+		&i.SourceMint,
+		&i.DestinationWallet,
+		&i.DestinationMint,
 		&i.Amount,
 		&i.DiscountAmount,
+		&i.TotalAmount,
+		&i.Message,
+		&i.Memo,
+		&i.ApplyBonus,
 		&i.TxSignature,
 		&i.Status,
 		&i.CreatedAt,
@@ -50,7 +102,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 }
 
 const getTransaction = `-- name: GetTransaction :one
-SELECT id, payment_id, reference, amount, discount_amount, tx_signature, status, created_at, updated_at FROM transactions WHERE id = $1
+SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE id = $1
 `
 
 func (q *Queries) GetTransaction(ctx context.Context, id uuid.UUID) (Transaction, error) {
@@ -60,8 +112,57 @@ func (q *Queries) GetTransaction(ctx context.Context, id uuid.UUID) (Transaction
 		&i.ID,
 		&i.PaymentID,
 		&i.Reference,
+		&i.SourceWallet,
+		&i.SourceMint,
+		&i.DestinationWallet,
+		&i.DestinationMint,
 		&i.Amount,
 		&i.DiscountAmount,
+		&i.TotalAmount,
+		&i.Message,
+		&i.Memo,
+		&i.ApplyBonus,
+		&i.TxSignature,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getTransactionByPaymentIDSourceWalletAndMint = `-- name: GetTransactionByPaymentIDSourceWalletAndMint :one
+SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions 
+WHERE payment_id = $1 
+    AND source_wallet = $2 
+    AND source_mint = $3
+    AND status = 'pending'::transaction_status
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetTransactionByPaymentIDSourceWalletAndMintParams struct {
+	PaymentID    uuid.UUID `json:"payment_id"`
+	SourceWallet string    `json:"source_wallet"`
+	SourceMint   string    `json:"source_mint"`
+}
+
+func (q *Queries) GetTransactionByPaymentIDSourceWalletAndMint(ctx context.Context, arg GetTransactionByPaymentIDSourceWalletAndMintParams) (Transaction, error) {
+	row := q.queryRow(ctx, q.getTransactionByPaymentIDSourceWalletAndMintStmt, getTransactionByPaymentIDSourceWalletAndMint, arg.PaymentID, arg.SourceWallet, arg.SourceMint)
+	var i Transaction
+	err := row.Scan(
+		&i.ID,
+		&i.PaymentID,
+		&i.Reference,
+		&i.SourceWallet,
+		&i.SourceMint,
+		&i.DestinationWallet,
+		&i.DestinationMint,
+		&i.Amount,
+		&i.DiscountAmount,
+		&i.TotalAmount,
+		&i.Message,
+		&i.Memo,
+		&i.ApplyBonus,
 		&i.TxSignature,
 		&i.Status,
 		&i.CreatedAt,
@@ -71,7 +172,7 @@ func (q *Queries) GetTransaction(ctx context.Context, id uuid.UUID) (Transaction
 }
 
 const getTransactionByReference = `-- name: GetTransactionByReference :one
-SELECT id, payment_id, reference, amount, discount_amount, tx_signature, status, created_at, updated_at FROM transactions WHERE reference = $1
+SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE reference = $1
 `
 
 func (q *Queries) GetTransactionByReference(ctx context.Context, reference string) (Transaction, error) {
@@ -81,8 +182,16 @@ func (q *Queries) GetTransactionByReference(ctx context.Context, reference strin
 		&i.ID,
 		&i.PaymentID,
 		&i.Reference,
+		&i.SourceWallet,
+		&i.SourceMint,
+		&i.DestinationWallet,
+		&i.DestinationMint,
 		&i.Amount,
 		&i.DiscountAmount,
+		&i.TotalAmount,
+		&i.Message,
+		&i.Memo,
+		&i.ApplyBonus,
 		&i.TxSignature,
 		&i.Status,
 		&i.CreatedAt,
@@ -92,7 +201,7 @@ func (q *Queries) GetTransactionByReference(ctx context.Context, reference strin
 }
 
 const getTransactionsByPaymentID = `-- name: GetTransactionsByPaymentID :many
-SELECT id, payment_id, reference, amount, discount_amount, tx_signature, status, created_at, updated_at FROM transactions WHERE payment_id = $1 ORDER BY created_at DESC
+SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE payment_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) GetTransactionsByPaymentID(ctx context.Context, paymentID uuid.UUID) ([]Transaction, error) {
@@ -108,8 +217,16 @@ func (q *Queries) GetTransactionsByPaymentID(ctx context.Context, paymentID uuid
 			&i.ID,
 			&i.PaymentID,
 			&i.Reference,
+			&i.SourceWallet,
+			&i.SourceMint,
+			&i.DestinationWallet,
+			&i.DestinationMint,
 			&i.Amount,
 			&i.DiscountAmount,
+			&i.TotalAmount,
+			&i.Message,
+			&i.Memo,
+			&i.ApplyBonus,
 			&i.TxSignature,
 			&i.Status,
 			&i.CreatedAt,
@@ -129,7 +246,7 @@ func (q *Queries) GetTransactionsByPaymentID(ctx context.Context, paymentID uuid
 }
 
 const updateTransactionByReference = `-- name: UpdateTransactionByReference :one
-UPDATE transactions SET tx_signature = $1, status = $2 WHERE reference = $3 RETURNING id, payment_id, reference, amount, discount_amount, tx_signature, status, created_at, updated_at
+UPDATE transactions SET tx_signature = $1, status = $2 WHERE reference = $3 RETURNING id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at
 `
 
 type UpdateTransactionByReferenceParams struct {
@@ -145,8 +262,16 @@ func (q *Queries) UpdateTransactionByReference(ctx context.Context, arg UpdateTr
 		&i.ID,
 		&i.PaymentID,
 		&i.Reference,
+		&i.SourceWallet,
+		&i.SourceMint,
+		&i.DestinationWallet,
+		&i.DestinationMint,
 		&i.Amount,
 		&i.DiscountAmount,
+		&i.TotalAmount,
+		&i.Message,
+		&i.Memo,
+		&i.ApplyBonus,
 		&i.TxSignature,
 		&i.Status,
 		&i.CreatedAt,

@@ -15,14 +15,23 @@ CREATE TABLE IF NOT EXISTS transactions (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     payment_id uuid NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
     reference VARCHAR NOT NULL,
+    source_wallet VARCHAR NOT NULL,
+    source_mint VARCHAR NOT NULL,
+    destination_wallet VARCHAR NOT NULL,
+    destination_mint VARCHAR NOT NULL,
     amount BIGINT NOT NULL,
     discount_amount BIGINT NOT NULL DEFAULT 0,
+    total_amount BIGINT NOT NULL,
+    message VARCHAR DEFAULT NULL,
+    memo VARCHAR DEFAULT NULL,
+    apply_bonus BOOLEAN DEFAULT NULL,
     tx_signature VARCHAR DEFAULT NULL,
     status transaction_status NOT NULL DEFAULT 'pending'::transaction_status,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP DEFAULT NULL
 );
 CREATE UNIQUE INDEX transactions_reference ON transactions USING BTREE (reference);
+CREATE INDEX transactions_payment_source ON transactions USING BTREE (payment_id, source_wallet, source_mint) WHERE status = 'pending'::transaction_status;
 CREATE TRIGGER update_transactions_modtime BEFORE
 UPDATE ON transactions FOR EACH ROW EXECUTE PROCEDURE transactions_update_updated_at_column();
 -- +migrate StatementEnd

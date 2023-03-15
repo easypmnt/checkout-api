@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/easypmnt/checkout-api/internal/utils"
 	"github.com/easypmnt/checkout-api/internal/validator"
 	"github.com/easypmnt/checkout-api/jupiter"
-	"github.com/easypmnt/checkout-api/payment"
+	"github.com/easypmnt/checkout-api/payments"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/google/uuid"
 )
@@ -19,8 +20,8 @@ type (
 		GetAppInfo                 endpoint.Endpoint
 		CreatePayment              endpoint.Endpoint
 		CancelPayment              endpoint.Endpoint
-		GetPaymentInfo             endpoint.Endpoint
-		GetPaymentInfoByExternalID endpoint.Endpoint
+		GetPayment                 endpoint.Endpoint
+		GetPaymentByExternalID     endpoint.Endpoint
 		GeneratePaymentLink        endpoint.Endpoint
 		GeneratePaymentTransaction endpoint.Endpoint
 		GetExchangeRate            endpoint.Endpoint
@@ -32,12 +33,22 @@ type (
 	}
 
 	paymentService interface {
-		CreatePayment(ctx context.Context, arg payment.CreatePaymentParams) (uuid.UUID, error)
-		CancelPayment(ctx context.Context, paymentID uuid.UUID) error
-		GetPaymentInfo(ctx context.Context, paymentID uuid.UUID) (*payment.Payment, error)
-		GetPaymentInfoByExternalID(ctx context.Context, externalID string) (*payment.Payment, error)
-		GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID, currency string, applyBonus bool) (string, error)
-		GeneratePaymentTransaction(ctx context.Context, arg payment.GeneratePaymentTransactionParams) (payment.GeneratePaymentTransactionResult, error)
+		// CreatePayment creates a new payment.
+		CreatePayment(ctx context.Context, payment *payments.Payment) (*payments.Payment, error)
+		// GetPayment returns the payment with the given ID.
+		GetPayment(ctx context.Context, id uuid.UUID) (*payments.Payment, error)
+		// GetPaymentByExternalID returns the payment with the given external ID.
+		GetPaymentByExternalID(ctx context.Context, externalID string) (*payments.Payment, error)
+		// GeneratePaymentLink generates a new payment link for the given payment.
+		GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID, mint string, applyBonus bool) (string, error)
+		// CancelPayment cancels the payment with the given ID.
+		CancelPayment(ctx context.Context, id uuid.UUID) error
+		// CancelPaymentByExternalID cancels the payment with the given external ID.
+		CancelPaymentByExternalID(ctx context.Context, externalID string) error
+		// BuildTransaction builds a new transaction for the given payment.
+		BuildTransaction(ctx context.Context, tx *payments.Transaction) (*payments.Transaction, error)
+		// GetTransactionByReference returns the transaction with the given reference.
+		GetTransactionByReference(ctx context.Context, reference string) (*payments.Transaction, error)
 	}
 
 	jupiterClient interface {
@@ -52,8 +63,8 @@ func MakeEndpoints(ps paymentService, jup jupiterClient, cfg Config) Endpoints {
 		GetAppInfo:                 makeGetAppInfoEndpoint(cfg),
 		CreatePayment:              makeCreatePaymentEndpoint(ps),
 		CancelPayment:              makeCancelPaymentEndpoint(ps),
-		GetPaymentInfo:             makeGetPaymentInfoEndpoint(ps),
-		GetPaymentInfoByExternalID: makeGetPaymentInfoByExternalIDEndpoint(ps),
+		GetPayment:                 makeGetPaymentEndpoint(ps),
+		GetPaymentByExternalID:     makeGetPaymentByExternalIDEndpoint(ps),
 		GeneratePaymentLink:        makeGeneratePaymentLinkEndpoint(ps),
 		GeneratePaymentTransaction: makeGeneratePaymentTransactionEndpoint(ps),
 		GetExchangeRate:            makeGetExchangeRateEndpoint(jup),
@@ -80,20 +91,10 @@ func makeGetAppInfoEndpoint(cfg Config) endpoint.Endpoint {
 // CreatePaymentRequest is the request type for the CreatePayment method.
 // For more information about the fields, see the struct definition in payment/payment.go.CreatePaymentParams
 type CreatePaymentRequest struct {
-	ExternalID   string `json:"external_id,omitempty"`
-	Currency     string `json:"currency,omitempty"`
-	Amount       int64  `json:"amount,omitempty"`
-	Message      string `json:"message,omitempty"`
-	Memo         string `json:"memo,omitempty"`
-	TTL          int64  `json:"ttl,omitempty"`
-	Destinations []struct {
-		Amount          int64  `json:"amount,omitempty"`
-		Percentage      int16  `json:"percentage,omitempty"`
-		WalletAddress   string `json:"wallet_address,omitempty"`
-		ApplyBonus      bool   `json:"apply_bonus,omitempty"`
-		MaxBonusAmount  int64  `json:"max_bonus_amount,omitempty"`
-		MaxBonusPercent int16  `json:"max_bonus_percent,omitempty"`
-	} `json:"destinations,omitempty"`
+	ExternalID string `json:"external_id,omitempty" validate:"min_len:1|max_len:50"`
+	Amount     uint64 `json:"amount,omitempty" validate:"required|gt:0"`
+	Message    string `json:"message,omitempty" validate:"min_len:2|max_len:100"`
+	TTL        int64  `json:"ttl,omitempty" validate:"min:0|max:86400"`
 }
 
 // CreatePaymentResponse is the response type for the CreatePayment method.
@@ -112,32 +113,20 @@ func makeCreatePaymentEndpoint(ps paymentService) endpoint.Endpoint {
 			return nil, validator.NewValidationError(v)
 		}
 
-		destinations := make([]payment.CreateDestinationParams, len(req.Destinations))
-		for i, d := range req.Destinations {
-			destinations[i] = payment.CreateDestinationParams{
-				Amount:          d.Amount,
-				Percentage:      d.Percentage,
-				WalletAddress:   d.WalletAddress,
-				ApplyBonus:      d.ApplyBonus,
-				MaxBonusAmount:  d.MaxBonusAmount,
-				MaxBonusPercent: d.MaxBonusPercent,
-			}
+		payment := &payments.Payment{
+			ExternalID: req.ExternalID,
+			Amount:     req.Amount,
+			Message:    req.Message,
 		}
-
-		paymentID, err := ps.CreatePayment(ctx, payment.CreatePaymentParams{
-			ExternalID:   req.ExternalID,
-			Currency:     req.Currency,
-			Amount:       req.Amount,
-			Message:      req.Message,
-			Memo:         req.Memo,
-			TTL:          req.TTL,
-			Destinations: destinations,
-		})
+		if req.TTL > 0 {
+			payment.ExpiresAt = utils.Pointer(time.Now().Add(time.Duration(req.TTL) * time.Second))
+		}
+		payment, err := ps.CreatePayment(ctx, payment)
 		if err != nil {
 			return nil, err
 		}
 
-		return CreatePaymentResponse{PaymentID: paymentID}, nil
+		return CreatePaymentResponse{PaymentID: payment.ID}, nil
 	}
 }
 
@@ -157,49 +146,50 @@ func makeCancelPaymentEndpoint(ps paymentService) endpoint.Endpoint {
 	}
 }
 
-// GetPaymentInfoResponse is the response type for the GetPaymentInfo method.
-type GetPaymentInfoResponse struct {
-	Payment payment.Payment `json:"payment"`
+// GetPaymentResponse is the response type for the GetPayment method.
+type GetPaymentResponse struct {
+	Payment     *payments.Payment     `json:"payment"`
+	Transaction *payments.Transaction `json:"transaction,omitempty"`
 }
 
-// makeGetPaymentInfoEndpoint returns an endpoint function for the GetPaymentInfo method.
-func makeGetPaymentInfoEndpoint(ps paymentService) endpoint.Endpoint {
+// makeGetPaymentEndpoint returns an endpoint function for the GetPayment method.
+func makeGetPaymentEndpoint(ps paymentService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		paymentID, ok := request.(uuid.UUID)
 		if !ok {
 			return nil, ErrInvalidRequest
 		}
 
-		payment, err := ps.GetPaymentInfo(ctx, paymentID)
+		payment, err := ps.GetPayment(ctx, paymentID)
 		if err != nil {
 			return nil, err
 		}
 
-		return GetPaymentInfoResponse{Payment: *payment}, nil
+		return GetPaymentResponse{Payment: payment}, nil
 	}
 }
 
-// makeGetPaymentInfoByExternalIDEndpoint returns an endpoint function for the GetPaymentInfoByExternalID method.
-func makeGetPaymentInfoByExternalIDEndpoint(ps paymentService) endpoint.Endpoint {
+// makeGetPaymentByExternalIDEndpoint returns an endpoint function for the GetPaymentByExternalID method.
+func makeGetPaymentByExternalIDEndpoint(ps paymentService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		externalID, ok := request.(string)
 		if !ok {
 			return nil, ErrInvalidRequest
 		}
 
-		payment, err := ps.GetPaymentInfoByExternalID(ctx, externalID)
+		payment, err := ps.GetPaymentByExternalID(ctx, externalID)
 		if err != nil {
 			return nil, err
 		}
 
-		return GetPaymentInfoResponse{Payment: *payment}, nil
+		return GetPaymentResponse{Payment: payment}, nil
 	}
 }
 
 // GeneratePaymentLinkRequest is the request type for the GeneratePaymentLink method.
 type GeneratePaymentLinkRequest struct {
 	PaymentID  uuid.UUID `json:"-" validate:"-" label:"Payment ID"`
-	Currency   string    `json:"currency,omitempty" validate:"-" label:"Currency"`
+	Mint       string    `json:"mint,omitempty" validate:"-" label:"Selected Mint"`
 	ApplyBonus string    `json:"apply_bonus,omitempty" validate:"bool" label:"Apply Bonus"`
 }
 
@@ -220,7 +210,7 @@ func makeGeneratePaymentLinkEndpoint(ps paymentService) endpoint.Endpoint {
 		}
 
 		applyBonus, _ := strconv.ParseBool(req.ApplyBonus)
-		link, err := ps.GeneratePaymentLink(ctx, req.PaymentID, req.Currency, applyBonus)
+		link, err := ps.GeneratePaymentLink(ctx, req.PaymentID, req.Mint, applyBonus)
 		if err != nil {
 			return nil, err
 		}
@@ -231,10 +221,10 @@ func makeGeneratePaymentLinkEndpoint(ps paymentService) endpoint.Endpoint {
 
 // GeneratePaymentTransactionRequest is the request type for the GeneratePaymentTransaction method.
 type GeneratePaymentTransactionRequest struct {
-	PaymentID  string `json:"-" validate:"required|uuid" label:"Payment ID"`
-	Base58Addr string `json:"account" validate:"required" label:"Account public key"`
-	Currency   string `json:"-" validate:"-"`
-	ApplyBonus string `json:"-" validate:"bool"`
+	PaymentID    string `json:"-" validate:"required|uuid" label:"Payment ID"`
+	SourceWallet string `json:"account" validate:"required" label:"Account public key"`
+	Mint         string `json:"-" validate:"-"`
+	ApplyBonus   string `json:"-" validate:"bool"`
 }
 
 // GeneratePaymentTransactionResponse is the response type for the GeneratePaymentTransaction method.
@@ -262,13 +252,14 @@ func makeGeneratePaymentTransactionEndpoint(ps paymentService) endpoint.Endpoint
 		}
 
 		applyBonus, _ := strconv.ParseBool(req.ApplyBonus)
+		tx := &payments.Transaction{
+			PaymentID:    paymentID,
+			SourceWallet: req.SourceWallet,
+			SourceMint:   req.Mint,
+			ApplyBonus:   applyBonus,
+		}
 
-		result, err := ps.GeneratePaymentTransaction(ctx, payment.GeneratePaymentTransactionParams{
-			PaymentID:  paymentID,
-			Base58Addr: req.Base58Addr,
-			Currency:   req.Currency,
-			ApplyBonus: applyBonus,
-		})
+		result, err := ps.BuildTransaction(ctx, tx)
 		if err != nil {
 			return nil, err
 		}
