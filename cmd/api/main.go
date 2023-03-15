@@ -142,7 +142,7 @@ func main() {
 		events.AllEvents...,
 	)
 	eventEmitter.ListenEvents(
-		sse.TranslateEventsToWebhookEvents(sseService),
+		sse.TranslateEventsToSSEChannel(sseService),
 		events.AllEvents...,
 	)
 

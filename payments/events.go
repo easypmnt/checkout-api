@@ -40,7 +40,7 @@ func UpdateTransactionStatusListener(service PaymentService) events.Listener {
 			return nil
 		}
 
-		if p.Status != "success" {
+		if p.Status == string(TransactionStatusPending) {
 			return nil
 		}
 

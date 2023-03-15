@@ -11,8 +11,8 @@ type sseService interface {
 	PubEvent(channelID string, data EventData, ttl int64) error
 }
 
-// TranslateEventsToWebhookEvents translates the events from the events package to the webhook events.
-func TranslateEventsToWebhookEvents(sse sseService) events.Listener {
+// TranslateEventsToSSEChannel translates the events from the events package to the webhook events.
+func TranslateEventsToSSEChannel(sse sseService) events.Listener {
 	return func(event events.EventName, payload interface{}) error {
 		if payload == nil {
 			return nil
