@@ -87,6 +87,8 @@ func (c *Client) ListenNewTransactions(event events.EventName, payload interface
 		return nil
 	}
 
+	c.log.Infof("websocketrpc: new transaction created: %s, subscribing...", data.Reference)
+
 	return c.Subscribe(data.Reference)
 }
 
@@ -102,6 +104,7 @@ func (c *Client) ListenTransactionUpdates(event events.EventName, payload interf
 	}
 
 	if data.Status != "pending" {
+		c.log.Infof("websocketrpc: transaction %s updated, unsubscribing...", data.Reference)
 		return c.UnsubscribeByAddress(data.Reference)
 	}
 
@@ -266,13 +269,15 @@ func (c *Client) runner(ctx context.Context) error {
 			}
 		case event, open := <-c.eventChan:
 			if open && event.Method == EventAccountNotification {
+				c.log.Infof("websocketrpc: run: received account notification: %s", string(event.Params.Result))
 				if sid, err := event.Params.Subscription.Float64(); err == nil && sid > 0 {
 					base58Addr, ok := c.subscriptions.Get(sid)
 					if !ok {
 						c.log.Errorf("websocketrpc: run: error handling event: subscription ID %d not found", sid)
 						continue
 					}
-					c.emitter.Emit(events.TransacionReferenceNotification,
+					c.log.Infof("websocketrpc: run: emitting account notification for address %s", base58Addr)
+					c.emitter.Emit(events.TransactionReferenceNotification,
 						events.ReferencePayload{
 							Reference: base58Addr,
 						},

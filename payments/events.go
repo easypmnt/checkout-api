@@ -85,3 +85,19 @@ func TransactionCreatedListener(service PaymentService, enq eventsEnqueuer) even
 		return enq.CheckPaymentByReference(context.Background(), p.Reference)
 	}
 }
+
+// ReferenceAccountNotificationListener is a listener for the transaction.reference.notification event.
+func ReferenceAccountNotificationListener(service PaymentService, enq eventsEnqueuer) events.Listener {
+	return func(event events.EventName, payload interface{}) error {
+		if payload == nil || event != events.TransactionReferenceNotification {
+			return nil
+		}
+
+		p, ok := payload.(events.ReferencePayload)
+		if !ok {
+			return nil
+		}
+
+		return enq.CheckPaymentByReference(context.Background(), p.Reference)
+	}
+}

@@ -2,16 +2,16 @@ package events
 
 // Predefined
 const (
-	PaymentCreated                  EventName = "payment.created"
-	PaymentProcessing               EventName = "payment.processing"
-	PaymentCancelled                EventName = "payment.cancelled"
-	PaymentFailed                   EventName = "payment.failed"
-	PaymentExpired                  EventName = "payment.expired"
-	PaymentSucceeded                EventName = "payment.succeeded"
-	PaymentLinkGenerated            EventName = "payment.link.generated"
-	TransactionCreated              EventName = "transaction.created"
-	TransactionUpdated              EventName = "transaction.updated"
-	TransacionReferenceNotification EventName = "transaction.reference.notification"
+	PaymentCreated                   EventName = "payment.created"
+	PaymentProcessing                EventName = "payment.processing"
+	PaymentCancelled                 EventName = "payment.cancelled"
+	PaymentFailed                    EventName = "payment.failed"
+	PaymentExpired                   EventName = "payment.expired"
+	PaymentSucceeded                 EventName = "payment.succeeded"
+	PaymentLinkGenerated             EventName = "payment.link.generated"
+	TransactionCreated               EventName = "transaction.created"
+	TransactionUpdated               EventName = "transaction.updated"
+	TransactionReferenceNotification EventName = "transaction.reference.notification"
 )
 
 var AllEvents = []EventName{

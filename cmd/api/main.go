@@ -133,6 +133,10 @@ func main() {
 	// Event listener
 	eventEmitter.On(events.TransactionUpdated, payments.UpdateTransactionStatusListener(paymentService))
 	eventEmitter.On(events.TransactionCreated, payments.TransactionCreatedListener(paymentService, paymentEnqueuer))
+	eventEmitter.On(
+		events.TransactionReferenceNotification,
+		payments.ReferenceAccountNotificationListener(paymentService, paymentEnqueuer),
+	)
 	eventEmitter.ListenEvents(
 		webhook.TranslateEventsToWebhookEvents(webhookEnqueuer),
 		events.AllEvents...,
