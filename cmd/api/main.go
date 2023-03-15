@@ -147,6 +147,9 @@ func main() {
 		events.AllEvents...,
 	)
 
+	// Event broadcaster
+	eventBroadcaster := events.NewEventBroadcaster(eventEmitter, logger)
+
 	// Mount HTTP endpoints
 	{
 		// oauth service
@@ -182,7 +185,7 @@ func main() {
 
 		// sse service
 		r.With(middleware.Timeout(time.Hour)).
-			Mount("/sse", sse.MakeHTTPHandler(sseService, logger))
+			Mount("/ws", events.MakeHTTPHandler(eventBroadcaster))
 	}
 
 	// Run HTTP server
@@ -205,6 +208,11 @@ func main() {
 		logger,
 		payments.NewScheduler(),
 	))
+
+	// Run event broadcaster
+	eg.Go(func() error {
+		return eventBroadcaster.Run(ctx)
+	})
 
 	// Run event listener
 	eg.Go(func() error {
