@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/easypmnt/checkout-api/internal/utils"
@@ -85,15 +86,18 @@ func (s *Service) GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID, 
 		return "", fmt.Errorf("payment already %s", payment.Status)
 	}
 
-	link := fmt.Sprintf(
-		"solana:%s/%s/%s/%s",
-		s.conf.SolPayBaseURL,
-		paymentID,
-		mint,
-		strconv.FormatBool(applyBonus),
-	)
+	if mint == "" {
+		mint = SOL
+	}
 
-	return link, nil
+	uri := strings.Join([]string{
+		strings.TrimRight(s.conf.SolPayBaseURL, "/"),
+		strings.Trim(paymentID.String(), "/"),
+		strings.Trim(mint, "/"),
+		strconv.FormatBool(applyBonus),
+	}, "/")
+
+	return fmt.Sprintf("solana:%s", uri), nil
 }
 
 // UpdatePaymentStatus updates the status of the payment with the given ID.
