@@ -115,7 +115,7 @@ func (q *Queries) GetPaymentByExternalID(ctx context.Context, externalID string)
 }
 
 const markPaymentsExpired = `-- name: MarkPaymentsExpired :exec
-UPDATE payments SET status = 'expired'::payment_status WHERE expires_at < NOW() AND status = 'pending'::payment_status
+UPDATE payments SET status = 'expired'::payment_status WHERE expires_at < NOW() AND status = 'new'::payment_status
 `
 
 func (q *Queries) MarkPaymentsExpired(ctx context.Context) error {

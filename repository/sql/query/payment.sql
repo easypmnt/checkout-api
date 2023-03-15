@@ -29,4 +29,4 @@ SELECT * FROM payments WHERE external_id = @external_id::VARCHAR;
 UPDATE payments SET status = @status WHERE id = @id RETURNING *;
 
 -- name: MarkPaymentsExpired :exec
-UPDATE payments SET status = 'expired'::payment_status WHERE expires_at < NOW() AND status = 'pending'::payment_status;
+UPDATE payments SET status = 'expired'::payment_status WHERE expires_at < NOW() AND status = 'new'::payment_status;
