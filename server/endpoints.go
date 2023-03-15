@@ -80,7 +80,6 @@ type GetAppInfoResponse struct {
 // makeGetAppInfoEndpoint returns an endpoint function for the GetAppInfo method.
 func makeGetAppInfoEndpoint(cfg Config) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		utils.PrettyPrint("makeGetAppInfoEndpoint", request)
 		return GetAppInfoResponse{
 			Label: cfg.AppName,
 			Icon:  cfg.AppIconURI,
@@ -243,8 +242,6 @@ func makeGeneratePaymentTransactionEndpoint(ps paymentService) endpoint.Endpoint
 		if v := validator.ValidateStruct(req); len(v) > 0 {
 			return nil, validator.NewValidationError(v)
 		}
-
-		utils.PrettyPrint("makeGeneratePaymentTransactionEndpoint", req)
 
 		paymentID, err := uuid.Parse(req.PaymentID)
 		if err != nil {

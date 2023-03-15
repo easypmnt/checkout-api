@@ -24,6 +24,7 @@ func initRouter(log *logrus.Entry) *chi.Mux {
 		middleware.AllowContentType(
 			"application/json",
 			"application/x-www-form-urlencoded",
+			"text/event-stream",
 		),
 		middleware.CleanPath,
 		middleware.StripSlashes,

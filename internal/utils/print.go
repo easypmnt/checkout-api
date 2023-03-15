@@ -25,3 +25,12 @@ func PrettyString(v interface{}) string {
 	}
 	return string(b)
 }
+
+// AnyToString converts any type to string
+func AnyToString(v interface{}) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err.Error()
+	}
+	return string(b)
+}

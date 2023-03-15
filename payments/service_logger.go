@@ -27,7 +27,7 @@ func NewServiceLogger(svc PaymentService, log Logger) *ServiceLogger {
 
 // CreatePayment creates a new payment.
 func (s *ServiceLogger) CreatePayment(ctx context.Context, payment *Payment) (*Payment, error) {
-	s.log.Debugf("creating payment: %s", utils.PrettyString(payment))
+	s.log.Debugf("creating payment: %s", utils.AnyToString(payment))
 
 	result, err := s.PaymentService.CreatePayment(ctx, payment)
 	if err != nil {
@@ -125,7 +125,7 @@ func (s *ServiceLogger) CancelPaymentByExternalID(ctx context.Context, externalI
 
 // BuildTransaction builds a new transaction for the given payment.
 func (s *ServiceLogger) BuildTransaction(ctx context.Context, tx *Transaction) (*Transaction, error) {
-	s.log.Debugf("building transaction: %s", utils.PrettyString(tx))
+	s.log.Debugf("building transaction: %s", utils.AnyToString(tx))
 
 	result, err := s.PaymentService.BuildTransaction(ctx, tx)
 	if err != nil {

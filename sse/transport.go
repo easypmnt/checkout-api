@@ -116,12 +116,14 @@ func openHTTPConnection(w http.ResponseWriter, r *http.Request) error {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 	}
-	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+
+	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
+
 	return sse.Encode(w, sse.Event{
 		Event: "notification",
 		Data:  "SSE connection successfully established",
