@@ -105,7 +105,7 @@ func (s *ServiceEvents) UpdatePaymentStatus(ctx context.Context, id uuid.UUID, s
 	}
 
 	if prev.Status != status {
-		eventName := GetEventName(status)
+		eventName := getEventName(status)
 		if eventName == "" {
 			return fmt.Errorf("unknown payment status %s", status)
 		}

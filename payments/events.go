@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetEventName returns the name of the event for the given payment status.
-func GetEventName(status PaymentStatus) events.EventName {
+// getEventName returns the name of the event for the given payment status.
+func getEventName(status PaymentStatus) events.EventName {
 	switch status {
 	case PaymentStatusNew:
 		return events.PaymentCreated
