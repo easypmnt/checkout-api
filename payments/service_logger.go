@@ -8,7 +8,7 @@ import (
 )
 
 type ServiceLogger struct {
-	svc PaymentService
+	PaymentService
 	log Logger
 }
 
@@ -19,14 +19,17 @@ type Logger interface {
 }
 
 func NewServiceLogger(svc PaymentService, log Logger) *ServiceLogger {
-	return &ServiceLogger{svc: svc, log: log}
+	return &ServiceLogger{
+		PaymentService: svc,
+		log:            log,
+	}
 }
 
 // CreatePayment creates a new payment.
 func (s *ServiceLogger) CreatePayment(ctx context.Context, payment *Payment) (*Payment, error) {
 	s.log.Debugf("creating payment: %s", utils.PrettyString(payment))
 
-	result, err := s.svc.CreatePayment(ctx, payment)
+	result, err := s.PaymentService.CreatePayment(ctx, payment)
 	if err != nil {
 		s.log.Errorf("failed to create payment: %s", err.Error())
 		return nil, err
@@ -41,7 +44,7 @@ func (s *ServiceLogger) CreatePayment(ctx context.Context, payment *Payment) (*P
 func (s *ServiceLogger) GetPayment(ctx context.Context, id uuid.UUID) (*Payment, error) {
 	s.log.Debugf("getting payment: %s", id.String())
 
-	result, err := s.svc.GetPayment(ctx, id)
+	result, err := s.PaymentService.GetPayment(ctx, id)
 	if err != nil {
 		s.log.Errorf("failed to get payment: %s", err.Error())
 		return nil, err
@@ -54,7 +57,7 @@ func (s *ServiceLogger) GetPayment(ctx context.Context, id uuid.UUID) (*Payment,
 func (s *ServiceLogger) GetPaymentByExternalID(ctx context.Context, externalID string) (*Payment, error) {
 	s.log.Debugf("getting payment by external id: %s", externalID)
 
-	result, err := s.svc.GetPaymentByExternalID(ctx, externalID)
+	result, err := s.PaymentService.GetPaymentByExternalID(ctx, externalID)
 	if err != nil {
 		s.log.Errorf("failed to get payment by external id %s: %s", externalID, err.Error())
 		return nil, err
@@ -67,7 +70,7 @@ func (s *ServiceLogger) GetPaymentByExternalID(ctx context.Context, externalID s
 func (s *ServiceLogger) GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID, mint string, applyBonus bool) (string, error) {
 	s.log.Debugf("generating payment link: id=%s, mint=%s, apply_bonus=%t", paymentID.String(), mint, applyBonus)
 
-	result, err := s.svc.GeneratePaymentLink(ctx, paymentID, mint, applyBonus)
+	result, err := s.PaymentService.GeneratePaymentLink(ctx, paymentID, mint, applyBonus)
 	if err != nil {
 		s.log.Errorf("failed to generate payment link: %s", err.Error())
 		return "", err
@@ -82,7 +85,7 @@ func (s *ServiceLogger) GeneratePaymentLink(ctx context.Context, paymentID uuid.
 func (s *ServiceLogger) UpdatePaymentStatus(ctx context.Context, id uuid.UUID, status PaymentStatus) error {
 	s.log.Debugf("updating payment status: id=%s, status=%s", id.String(), status)
 
-	if err := s.svc.UpdatePaymentStatus(ctx, id, status); err != nil {
+	if err := s.PaymentService.UpdatePaymentStatus(ctx, id, status); err != nil {
 		s.log.Errorf("failed to update payment status: %s", err.Error())
 		return err
 	}
@@ -96,7 +99,7 @@ func (s *ServiceLogger) UpdatePaymentStatus(ctx context.Context, id uuid.UUID, s
 func (s *ServiceLogger) CancelPayment(ctx context.Context, id uuid.UUID) error {
 	s.log.Debugf("cancelling payment by id=%s", id.String())
 
-	if err := s.svc.CancelPayment(ctx, id); err != nil {
+	if err := s.PaymentService.CancelPayment(ctx, id); err != nil {
 		s.log.Errorf("failed to cancel payment with id=%s: %s", id.String(), err.Error())
 		return err
 	}
@@ -110,7 +113,7 @@ func (s *ServiceLogger) CancelPayment(ctx context.Context, id uuid.UUID) error {
 func (s *ServiceLogger) CancelPaymentByExternalID(ctx context.Context, externalID string) error {
 	s.log.Debugf("cancelling payment by external_id=%s", externalID)
 
-	if err := s.svc.CancelPaymentByExternalID(ctx, externalID); err != nil {
+	if err := s.PaymentService.CancelPaymentByExternalID(ctx, externalID); err != nil {
 		s.log.Errorf("failed to cancel payment by external_id=%s: %s", externalID, err.Error())
 		return err
 	}
@@ -124,7 +127,7 @@ func (s *ServiceLogger) CancelPaymentByExternalID(ctx context.Context, externalI
 func (s *ServiceLogger) BuildTransaction(ctx context.Context, tx *Transaction) (*Transaction, error) {
 	s.log.Debugf("building transaction: %s", utils.PrettyString(tx))
 
-	result, err := s.svc.BuildTransaction(ctx, tx)
+	result, err := s.PaymentService.BuildTransaction(ctx, tx)
 	if err != nil {
 		s.log.Errorf("failed to build transaction: %s", err.Error())
 		return nil, err
@@ -139,7 +142,7 @@ func (s *ServiceLogger) BuildTransaction(ctx context.Context, tx *Transaction) (
 func (s *ServiceLogger) GetTransactionByReference(ctx context.Context, reference string) (*Transaction, error) {
 	s.log.Debugf("getting transaction by reference: %s", reference)
 
-	result, err := s.svc.GetTransactionByReference(ctx, reference)
+	result, err := s.PaymentService.GetTransactionByReference(ctx, reference)
 	if err != nil {
 		s.log.Errorf("failed to get transaction by reference %s: %s", reference, err.Error())
 		return nil, err
@@ -152,7 +155,7 @@ func (s *ServiceLogger) GetTransactionByReference(ctx context.Context, reference
 func (s *ServiceLogger) MarkPaymentsAsExpired(ctx context.Context) error {
 	s.log.Debugf("marking payments as expired")
 
-	if err := s.svc.MarkPaymentsAsExpired(ctx); err != nil {
+	if err := s.PaymentService.MarkPaymentsAsExpired(ctx); err != nil {
 		s.log.Errorf("failed to mark payments as expired: %s", err.Error())
 		return err
 	}
@@ -166,12 +169,39 @@ func (s *ServiceLogger) MarkPaymentsAsExpired(ctx context.Context) error {
 func (s *ServiceLogger) UpdateTransaction(ctx context.Context, reference string, status TransactionStatus, signature string) error {
 	s.log.Debugf("updating transaction: reference=%s, status=%s, signature=%s", reference, status, signature)
 
-	if err := s.svc.UpdateTransaction(ctx, reference, status, signature); err != nil {
+	if err := s.PaymentService.UpdateTransaction(ctx, reference, status, signature); err != nil {
 		s.log.Errorf("failed to update transaction: %s", err.Error())
 		return err
 	}
 
 	s.log.Infof("transaction updated: reference=%s, status=%s, signature=%s", reference, status, signature)
+
+	return nil
+}
+
+// GetPendingTransactions returns all pending transactions.
+func (s *ServiceLogger) GetPendingTransactions(ctx context.Context) ([]*Transaction, error) {
+	s.log.Debugf("getting pending transactions")
+
+	result, err := s.PaymentService.GetPendingTransactions(ctx)
+	if err != nil {
+		s.log.Errorf("failed to get pending transactions: %s", err.Error())
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// MarkTransactionsAsExpired marks all transactions that are expired as expired.
+func (s *ServiceLogger) MarkTransactionsAsExpired(ctx context.Context) error {
+	s.log.Debugf("marking transactions as expired")
+
+	if err := s.PaymentService.MarkTransactionsAsExpired(ctx); err != nil {
+		s.log.Errorf("failed to mark transactions as expired: %s", err.Error())
+		return err
+	}
+
+	s.log.Infof("transactions marked as expired")
 
 	return nil
 }

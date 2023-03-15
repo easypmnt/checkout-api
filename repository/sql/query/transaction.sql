@@ -51,3 +51,12 @@ WHERE payment_id = @payment_id
     AND status = 'pending'::transaction_status
 ORDER BY created_at DESC
 LIMIT 1;
+
+-- name: GetPendingTransactions :many
+SELECT * FROM transactions WHERE status = 'pending'::transaction_status;
+
+-- name: MarkTransactionsAsExpired :exec
+UPDATE transactions SET status = 'expired'::transaction_status 
+WHERE status = 'pending'::transaction_status AND payment_id IN (
+    SELECT id FROM payments WHERE status = 'expired'::payment_status
+);

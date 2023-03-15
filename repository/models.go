@@ -65,6 +65,7 @@ const (
 	TransactionStatusPending   TransactionStatus = "pending"
 	TransactionStatusCompleted TransactionStatus = "completed"
 	TransactionStatusFailed    TransactionStatus = "failed"
+	TransactionStatusExpired   TransactionStatus = "expired"
 )
 
 func (e *TransactionStatus) Scan(src interface{}) error {

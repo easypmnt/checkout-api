@@ -13,4 +13,6 @@ func NewScheduler() *Scheduler {
 // Schedule tasks for auth service.
 func (s *Scheduler) Schedule(scheduler *asynq.Scheduler) {
 	scheduler.Register("@every 5m", asynq.NewTask(TastMarkPaymentsAsExpired, nil))
+	scheduler.Register("@every 5m", asynq.NewTask(TaskMarkTransactionsAsExpired, nil))
+	scheduler.Register("@every 5m", asynq.NewTask(TaskCheckPendingTransactions, nil))
 }

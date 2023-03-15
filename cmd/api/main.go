@@ -166,7 +166,7 @@ func main() {
 	eg.Go(runQueueServer(
 		redisConnOpt,
 		logger,
-		payments.NewWorker(paymentService, solClient),
+		payments.NewWorker(paymentService, solClient, paymentEnqueuer),
 		webhook.NewWorker(webhook.NewService(
 			webhook.WithSignatureSecret(webhookSignatureSecret),
 			webhook.WithWebhookURI(webhookURI),

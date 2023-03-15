@@ -7,12 +7,12 @@ type (
 	EventName string
 
 	// Listener is a function that is called when an event is fired.
-	Listener func(...interface{}) error
+	Listener func(EventName, interface{}) error
 
 	// Emitter is an interface that allows to fire events.
 	Emitter interface {
 		// Emit fires an event with the given name and payload.
-		Emit(EventName, ...interface{})
+		Emit(EventName, interface{})
 		// On registers a listener for the given event name.
 		On(EventName, ...Listener)
 	}
@@ -40,17 +40,17 @@ func NewEmitter(log Logger) Emitter {
 }
 
 // Emit fires an event with the given name and payload.
-func (e *emitter) Emit(name EventName, payload ...interface{}) {
+func (e *emitter) Emit(name EventName, payload interface{}) {
 	e.RLock()
 	defer e.RUnlock()
 
 	for _, listener := range e.listeners[name] {
 		if listener != nil {
-			go func(fn Listener, i ...interface{}) {
-				if err := fn(payload...); err != nil {
+			go func(fn Listener, i interface{}) {
+				if err := fn(name, payload); err != nil {
 					e.log.Errorf("failed to handle event %s: %s", name, err.Error())
 				}
-			}(listener, payload...)
+			}(listener, payload)
 		}
 	}
 

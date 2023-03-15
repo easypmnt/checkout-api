@@ -30,12 +30,12 @@ func getEventName(status PaymentStatus) events.EventName {
 
 // UpdateTransactionStatusListener is a listener for the transaction.updated event.
 func UpdateTransactionStatusListener(service PaymentService) events.Listener {
-	return func(payload ...interface{}) error {
-		if len(payload) == 0 {
+	return func(event events.EventName, payload interface{}) error {
+		if payload == nil {
 			return nil
 		}
 
-		p, ok := payload[0].(events.TransactionUpdatedPayload)
+		p, ok := payload.(events.TransactionUpdatedPayload)
 		if !ok {
 			return nil
 		}
@@ -63,5 +63,25 @@ func UpdateTransactionStatusListener(service PaymentService) events.Listener {
 		defer cancel()
 
 		return service.UpdatePaymentStatus(ctx, pid, status)
+	}
+}
+
+type eventsEnqueuer interface {
+	CheckPaymentByReference(ctx context.Context, reference string) error
+}
+
+// TransactionCreatedListener is a listener for the transaction.created event.
+func TransactionCreatedListener(service PaymentService, enq eventsEnqueuer) events.Listener {
+	return func(event events.EventName, payload interface{}) error {
+		if payload == nil {
+			return nil
+		}
+
+		p, ok := payload.(events.TransactionCreatedPayload)
+		if !ok {
+			return nil
+		}
+
+		return enq.CheckPaymentByReference(context.Background(), p.Reference)
 	}
 }

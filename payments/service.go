@@ -217,6 +217,32 @@ func (s *Service) UpdateTransaction(ctx context.Context, reference string, statu
 	return nil
 }
 
+// GetPendingTransactions returns all pending transactions.
+func (s *Service) GetPendingTransactions(ctx context.Context) ([]*Transaction, error) {
+	pendingTxs, err := s.repo.GetPendingTransactions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending transactions: %w", err)
+	}
+
+	result := make([]*Transaction, 0, len(pendingTxs))
+	for _, tx := range pendingTxs {
+		result = append(result, castFromRepositoryTransaction(tx, s.conf))
+	}
+
+	return result, nil
+}
+
+// MarkTransactionsAsExpired marks all transactions that are expired as expired.
+func (s *Service) MarkTransactionsAsExpired(ctx context.Context) error {
+	if err := s.repo.MarkTransactionsAsExpired(ctx); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("failed to mark transactions as expired: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (s *Service) mergePaymentWithDefaultConfig(payment *Payment) *Payment {
 	if payment.DestinationWallet == "" {
 		payment.DestinationWallet = s.conf.DestinationWallet
