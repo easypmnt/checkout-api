@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/easypmnt/checkout-api/auth"
 	"github.com/easypmnt/checkout-api/events"
@@ -18,6 +19,7 @@ import (
 	"github.com/easypmnt/checkout-api/sse"
 	"github.com/easypmnt/checkout-api/webhook"
 	"github.com/easypmnt/checkout-api/websocketrpc"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/oauth"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
@@ -143,35 +145,39 @@ func main() {
 	// Mount HTTP endpoints
 	{
 		// oauth service
-		r.Mount("/oauth", auth.MakeHTTPHandler(
-			auth.NewOAuth2Server(
-				oauthSigningKey,
-				accessTokenTTL,
-				auth.NewVerifier(
-					repo,
-					clientID,
-					clientSecret,
-					auth.WithAccessTokenTTL(accessTokenTTL),
-					auth.WithRefreshTokenTTL(refreshTokenTTL),
+		r.With(middleware.Timeout(httpRequestTimeout)).
+			Mount("/oauth", auth.MakeHTTPHandler(
+				auth.NewOAuth2Server(
+					oauthSigningKey,
+					accessTokenTTL,
+					auth.NewVerifier(
+						repo,
+						clientID,
+						clientSecret,
+						auth.WithAccessTokenTTL(accessTokenTTL),
+						auth.WithRefreshTokenTTL(refreshTokenTTL),
+					),
 				),
-			),
-		))
+			))
 
 		// payment service
-		r.Mount("/payment", server.MakeHTTPHandler(
-			server.MakeEndpoints(
-				paymentService,
-				jupiterClient,
-				server.Config{
-					AppName:    productName,
-					AppIconURI: productIconURI,
-				},
-			),
-			kitlog.NewLogger(logger), oauthMdw,
-		))
+		r.With(middleware.Timeout(httpRequestTimeout)).
+			Mount("/payment", server.MakeHTTPHandler(
+				server.MakeEndpoints(
+					paymentService,
+					jupiterClient,
+					server.Config{
+						AppName:    productName,
+						AppIconURI: productIconURI,
+					},
+				),
+				kitlog.NewLogger(logger),
+				oauthMdw,
+			))
 
 		// sse service
-		r.Mount("/sse", sse.MakeHTTPHandler(sseService, logger))
+		r.With(middleware.Timeout(time.Hour)).
+			Mount("/sse", sse.MakeHTTPHandler(sseService, logger))
 	}
 
 	// Run HTTP server

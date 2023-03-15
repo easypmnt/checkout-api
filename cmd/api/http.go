@@ -21,7 +21,6 @@ func initRouter(log *logrus.Entry) *chi.Mux {
 	r.Use(
 		// recoverer.WithLogger(log),
 		recoverer.WithLogger(nil),
-		middleware.Timeout(httpRequestTimeout),
 		middleware.AllowContentType(
 			"application/json",
 			"application/x-www-form-urlencoded",
