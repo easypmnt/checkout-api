@@ -17,6 +17,7 @@ import (
 	"github.com/easypmnt/checkout-api/repository"
 	"github.com/easypmnt/checkout-api/server"
 	"github.com/easypmnt/checkout-api/solana"
+	"github.com/easypmnt/checkout-api/sse"
 	"github.com/easypmnt/checkout-api/webhook"
 	"github.com/easypmnt/checkout-api/websocketrpc"
 	"github.com/go-chi/oauth"
@@ -129,11 +130,18 @@ func main() {
 	// Logging decorator
 	paymentService = payments.NewServiceLogger(paymentService, logger)
 
+	// Init sse service
+	sseService := sse.NewService(sse.NewMemStorage())
+
 	// Event listener
 	eventEmitter.On(events.TransactionUpdated, payments.UpdateTransactionStatusListener(paymentService))
 	eventEmitter.On(events.TransactionCreated, payments.TransactionCreatedListener(paymentService, paymentEnqueuer))
 	eventEmitter.ListenEvents(
 		webhook.TranslateEventsToWebhookEvents(webhookEnqueuer),
+		events.AllEvents...,
+	)
+	eventEmitter.ListenEvents(
+		sse.TranslateEventsToWebhookEvents(sseService),
 		events.AllEvents...,
 	)
 
@@ -166,6 +174,9 @@ func main() {
 			),
 			kitlog.NewLogger(logger), oauthMdw,
 		))
+
+		// sse service
+		r.Mount("/sse", sse.MakeHTTPHandler(sseService, logger))
 	}
 
 	// Run HTTP server

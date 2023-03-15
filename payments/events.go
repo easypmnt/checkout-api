@@ -44,7 +44,7 @@ func UpdateTransactionStatusListener(service PaymentService) events.Listener {
 			return nil
 		}
 
-		pid, err := uuid.Parse(p.PaymentID)
+		pid, err := uuid.Parse(p.GetPaymentID())
 		if err != nil {
 			return fmt.Errorf("failed to parse payment id: %s", err.Error())
 		}

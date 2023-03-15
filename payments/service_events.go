@@ -32,7 +32,7 @@ func (s *ServiceEvents) CreatePayment(ctx context.Context, payment *Payment) (*P
 	}
 
 	s.fireEvent(events.PaymentCreated, events.PaymentCreatedPayload{
-		PaymentID: result.ID.String(),
+		PaymentID: events.PaymentID{PaymentID: result.ID.String()},
 	})
 
 	return result, nil
@@ -46,7 +46,7 @@ func (s *ServiceEvents) GeneratePaymentLink(ctx context.Context, paymentID uuid.
 	}
 
 	s.fireEvent(events.PaymentLinkGenerated, events.PaymentLinkGeneratedPayload{
-		PaymentID: paymentID.String(),
+		PaymentID: events.PaymentID{PaymentID: paymentID.String()},
 		Link:      result,
 	})
 
@@ -60,7 +60,7 @@ func (s *ServiceEvents) CancelPayment(ctx context.Context, id uuid.UUID) error {
 	}
 
 	s.fireEvent(events.PaymentCancelled, events.PaymentStatusUpdatedPayload{
-		PaymentID: id.String(),
+		PaymentID: events.PaymentID{PaymentID: id.String()},
 		Status:    string(PaymentStatusCanceled),
 	})
 
@@ -79,7 +79,7 @@ func (s *ServiceEvents) CancelPaymentByExternalID(ctx context.Context, externalI
 	}
 
 	s.fireEvent(events.PaymentCancelled, events.PaymentStatusUpdatedPayload{
-		PaymentID: payment.ID.String(),
+		PaymentID: events.PaymentID{PaymentID: payment.ID.String()},
 		Status:    string(PaymentStatusCanceled),
 	})
 
@@ -103,7 +103,7 @@ func (s *ServiceEvents) UpdatePaymentStatus(ctx context.Context, id uuid.UUID, s
 			return fmt.Errorf("unknown payment status %s", status)
 		}
 		s.fireEvent(eventName, events.PaymentStatusUpdatedPayload{
-			PaymentID: id.String(),
+			PaymentID: events.PaymentID{PaymentID: id.String()},
 			Status:    string(status),
 		})
 	}
@@ -120,7 +120,7 @@ func (s *ServiceEvents) BuildTransaction(ctx context.Context, tx *Transaction) (
 
 	s.fireEvent(events.TransactionCreated, events.TransactionCreatedPayload{
 		TransactionID: result.ID.String(),
-		PaymentID:     result.PaymentID.String(),
+		PaymentID:     events.PaymentID{PaymentID: result.PaymentID.String()},
 		Reference:     result.Reference,
 	})
 
@@ -139,7 +139,7 @@ func (s *ServiceEvents) UpdateTransaction(ctx context.Context, reference string,
 	}
 
 	s.fireEvent(events.TransactionUpdated, events.TransactionUpdatedPayload{
-		PaymentID: tx.PaymentID.String(),
+		PaymentID: events.PaymentID{PaymentID: tx.PaymentID.String()},
 		Reference: tx.Reference,
 		Status:    string(tx.Status),
 		Signature: tx.Signature,
