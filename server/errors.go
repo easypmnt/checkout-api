@@ -37,6 +37,9 @@ func NewError(err error) *httpencoder.ErrorResponse {
 	if !ok {
 		if stdErr := findError(err); stdErr != nil {
 			code, ok = ErrorCodes[stdErr]
+			if !ok {
+				code = http.StatusInternalServerError
+			}
 		} else {
 			return nil
 		}

@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"github.com/easypmnt/checkout-api/auth"
+	"github.com/easypmnt/checkout-api/events"
 	"github.com/easypmnt/checkout-api/internal/kitlog"
 	"github.com/easypmnt/checkout-api/jupiter"
-	"github.com/easypmnt/checkout-api/payment"
+	"github.com/easypmnt/checkout-api/payments"
 	"github.com/easypmnt/checkout-api/repository"
 	"github.com/easypmnt/checkout-api/server"
 	"github.com/easypmnt/checkout-api/solana"
@@ -51,10 +52,13 @@ func main() {
 	}
 
 	// Init repository
-	repo, err := repository.NewWithConnection(ctx, db)
+	repo, err := repository.Prepare(ctx, db)
 	if err != nil {
 		logger.WithError(err).Fatal("failed to init repository")
 	}
+
+	// Init event emitter
+	eventEmitter := events.NewEmitter(logger)
 
 	// Redis connect options for asynq client
 	redisConnOpt, err := asynq.ParseRedisURI(redisConnString)
@@ -82,9 +86,10 @@ func main() {
 
 	// webhook enqueuer
 	webhookEnqueuer := webhook.NewEnqueuer(asynqClient)
+	_ = webhookEnqueuer
 
 	// Payment worker enqueuer
-	paymentEnqueuer := payment.NewEnqueuer(asynqClient)
+	paymentEnqueuer := payments.NewEnqueuer(asynqClient)
 
 	// Setup event listener
 	wsConn := openWebsocketConnection(ctx, solanaWSSEndpoint, logger, eg)
@@ -97,19 +102,31 @@ func main() {
 		),
 	)
 
+	var paymentService payments.PaymentService
 	// Payment service
-	paymentService := payment.NewService(
+	paymentService = payments.NewService(
 		repo, solClient, jupiterClient,
-		payment.WithSolanaPayBaseURI(solanaPayBaseURI),
-		payment.WithDefaultMerchantWalletAddress(merchantWalletAddress),
-		payment.WithDefaultMerchantApplyBonus(merchantApplyBonus),
-		payment.WithDefaultMerchantMaxBonusPerc(uint16(merchantMaxBonusPercentage)),
-		payment.WithDefaultMerchantBonusMintAddr(bonusMintAddress),
-		payment.WithDefaultMerchantBonusMintAuthority(bonusMintAuthority),
-		payment.WithDefaultMerchantBonusRate(uint64(bonusRate)),
-		payment.WithWebhookEnqueuer(webhookEnqueuer),
-		payment.WithEventClient(eventClient),
+		payments.Config{
+			ApplyBonus:           merchantApplyBonus,
+			BonusMintAddress:     bonusMintAddress,
+			BonusAuthAccount:     bonusMintAuthority,
+			MaxApplyBonusAmount:  uint64(maxApplyBonusAmount),
+			MaxApplyBonusPercent: uint16(merchantMaxBonusPercentage),
+			AccrueBonus:          bonusRate > 0,
+			AccrueBonusRate:      uint64(bonusRate),
+			DestinationMint:      merchantDefaultMint,
+			DestinationWallet:    merchantWalletAddress,
+			PaymentTTL:           paymentTTL,
+			SolPayBaseURL:        solanaPayBaseURI,
+		},
 	)
+	// Events decorator
+	paymentService = payments.NewServiceEvents(paymentService, eventEmitter.Emit)
+	// Logging decorator
+	paymentService = payments.NewServiceLogger(paymentService, logger)
+
+	// Event listener
+	eventEmitter.On(events.TransactionUpdated, payments.UpdateTransactionStatusListener(paymentService))
 
 	// Mount HTTP endpoints
 	{
@@ -149,7 +166,7 @@ func main() {
 	eg.Go(runQueueServer(
 		redisConnOpt,
 		logger,
-		payment.NewWorker(paymentService, eventClient),
+		payments.NewWorker(paymentService, solClient),
 		webhook.NewWorker(webhook.NewService(
 			webhook.WithSignatureSecret(webhookSignatureSecret),
 			webhook.WithWebhookURI(webhookURI),
@@ -160,7 +177,7 @@ func main() {
 	eg.Go(runScheduler(
 		redisConnOpt,
 		logger,
-		// TODO: add scheduler workers
+		payments.NewScheduler(),
 	))
 
 	// Run event listener
@@ -174,7 +191,7 @@ func main() {
 	}
 
 	time.Sleep(5 * time.Second) // wait for all goroutines to finish
-	logger.Info("server successfuly shutdown")
+	logger.Info("server successfully shutdown")
 }
 
 // newCtx creates a new context that is cancelled when an interrupt signal is received.

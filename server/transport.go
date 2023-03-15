@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/easypmnt/checkout-api/internal/httpencoder"
-	"github.com/easypmnt/checkout-api/internal/utils"
 	"github.com/easypmnt/checkout-api/internal/validator"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-kit/kit/transport"
@@ -43,7 +42,7 @@ func MakeHTTPHandler(e Endpoints, log logger, authMdw middlewareFunc) http.Handl
 			options...,
 		).ServeHTTP)
 
-		r.Post("/checkout/{payment_id}", httptransport.NewServer(
+		r.Post("/checkout/{payment_id}/{mint}/{apply_bonus}", httptransport.NewServer(
 			e.GeneratePaymentTransaction,
 			decodeGeneratePaymentTransactionRequest,
 			httpencoder.EncodeResponseAsIs,
@@ -63,15 +62,15 @@ func MakeHTTPHandler(e Endpoints, log logger, authMdw middlewareFunc) http.Handl
 		).ServeHTTP)
 
 		r.Get("/pid/{payment_id}", httptransport.NewServer(
-			e.GetPaymentInfo,
-			decodeGetPaymentInfoRequest,
+			e.GetPayment,
+			decodeGetPaymentRequest,
 			httpencoder.EncodeResponse,
 			options...,
 		).ServeHTTP)
 
 		r.Get("/ext/{external_id}", httptransport.NewServer(
-			e.GetPaymentInfoByExternalID,
-			decodeGetPaymentInfoByExternalIDRequest,
+			e.GetPaymentByExternalID,
+			decodeGetPaymentByExternalIDRequest,
 			httpencoder.EncodeResponse,
 			options...,
 		).ServeHTTP)
@@ -137,11 +136,9 @@ func decodeGeneratePaymentTransactionRequest(ctx context.Context, r *http.Reques
 		return nil, err
 	}
 
-	utils.PrettyPrint("decodeGeneratePaymentTransactionRequest", r.URL.String())
-
 	req.PaymentID = chi.URLParam(r, "payment_id")
-	req.Currency = r.URL.Query().Get("currency")
-	req.ApplyBonus = r.URL.Query().Get("apply_bonus")
+	req.Mint = chi.URLParam(r, "mint")
+	req.ApplyBonus = chi.URLParam(r, "apply_bonus")
 
 	return req, nil
 }
@@ -157,9 +154,9 @@ func decodeCreatePaymentRequest(ctx context.Context, r *http.Request) (interface
 	return req, nil
 }
 
-// decodeGetPaymentInfoRequest is a transport/http.DecodeRequestFunc that decodes a
+// decodeGetPaymentRequest is a transport/http.DecodeRequestFunc that decodes a
 // JSON-encoded request from the HTTP request body.
-func decodeGetPaymentInfoRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+func decodeGetPaymentRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	pid, err := uuid.Parse(chi.URLParam(r, "payment_id"))
 	if err != nil {
 		return nil, ErrInvalidRequest
@@ -168,9 +165,9 @@ func decodeGetPaymentInfoRequest(ctx context.Context, r *http.Request) (interfac
 	return pid, nil
 }
 
-// decodeGetPaymentInfoByExternalIDRequest is a transport/http.DecodeRequestFunc that decodes a
+// decodeGetPaymentByExternalIDRequest is a transport/http.DecodeRequestFunc that decodes a
 // JSON-encoded request from the HTTP request body.
-func decodeGetPaymentInfoByExternalIDRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+func decodeGetPaymentByExternalIDRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	return chi.URLParam(r, "external_id"), nil
 }
 

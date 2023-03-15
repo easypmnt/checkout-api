@@ -431,3 +431,25 @@ func (c *Client) getDeprecatedTokenMetadata(_ context.Context, base58MintAddr st
 
 	return &result, nil
 }
+
+// ValidateTransactionByReference returns the transaction by the given reference.
+// Returns transaction signature or an error if the transaction is not found or the transaction failed.
+func (c *Client) ValidateTransactionByReference(ctx context.Context, reference, destination string, amount uint64, mint string) (string, error) {
+	txSign, tx, err := c.GetOldestTransactionForWallet(ctx, reference, "")
+	if err != nil {
+		return "", fmt.Errorf("failed to validate transaction for reference %s: %w", reference, err)
+	}
+
+	if mint == "" || mint == "SOL" || mint == "So11111111111111111111111111111111111111112" {
+		if err := CheckSolTransferTransaction(tx.Meta, tx.Transaction, destination, amount); err != nil {
+			return "", fmt.Errorf("failed to validate transaction for reference %s: %w", reference, err)
+		}
+		return txSign, nil
+	}
+
+	if err := CheckTokenTransferTransaction(tx.Meta, tx.Transaction, mint, destination, amount); err != nil {
+		return "", fmt.Errorf("failed to validate transaction for reference %s: %w", reference, err)
+	}
+
+	return txSign, nil
+}
