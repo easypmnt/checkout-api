@@ -164,9 +164,7 @@ func (s *Service) BuildTransaction(ctx context.Context, tx *Transaction) (*Trans
 		return nil, fmt.Errorf("failed to build transaction: %w", err)
 	}
 
-	tx.Transaction = base64Tx
-
-	if _, err := s.repo.CreateTransaction(ctx, repository.CreateTransactionParams{
+	repoTx, err := s.repo.CreateTransaction(ctx, repository.CreateTransactionParams{
 		PaymentID:          tx.PaymentID,
 		Reference:          tx.Reference,
 		SourceWallet:       tx.SourceWallet,
@@ -181,11 +179,15 @@ func (s *Service) BuildTransaction(ctx context.Context, tx *Transaction) (*Trans
 		ApplyBonus:         sql.NullBool{Bool: tx.ApplyBonus, Valid: true},
 		AccruedBonusAmount: int64(tx.AccruedBonusAmount),
 		Status:             repository.TransactionStatusPending,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
-	return tx, nil
+	result := castFromRepositoryTransaction(repoTx, s.conf)
+	result.Transaction = base64Tx
+
+	return result, nil
 }
 
 // GetTransactionByReference returns the transaction with the given reference.
