@@ -21,6 +21,7 @@ const (
 	PaymentStatusCompleted PaymentStatus = "completed"
 	PaymentStatusFailed    PaymentStatus = "failed"
 	PaymentStatusCanceled  PaymentStatus = "canceled"
+	PaymentStatusExpired   PaymentStatus = "expired"
 )
 
 func (e *PaymentStatus) Scan(src interface{}) error {
@@ -102,28 +103,16 @@ func (ns NullTransactionStatus) Value() (driver.Value, error) {
 }
 
 type Payment struct {
-	ID          uuid.UUID      `json:"id"`
-	ExternalID  sql.NullString `json:"external_id"`
-	Currency    string         `json:"currency"`
-	TotalAmount int64          `json:"total_amount"`
-	Status      PaymentStatus  `json:"status"`
-	Message     sql.NullString `json:"message"`
-	Memo        sql.NullString `json:"memo"`
-	ExpiresAt   sql.NullTime   `json:"expires_at"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   sql.NullTime   `json:"updated_at"`
-}
-
-type PaymentDestination struct {
-	PaymentID          uuid.UUID     `json:"payment_id"`
-	Destination        string        `json:"destination"`
-	Amount             sql.NullInt64 `json:"amount"`
-	Percentage         sql.NullInt16 `json:"percentage"`
-	TotalAmount        int64         `json:"total_amount"`
-	DiscountAmount     int64         `json:"discount_amount"`
-	ApplyBonus         bool          `json:"apply_bonus"`
-	MaxBonusAmount     int64         `json:"max_bonus_amount"`
-	MaxBonusPercentage int16         `json:"max_bonus_percentage"`
+	ID                uuid.UUID      `json:"id"`
+	ExternalID        sql.NullString `json:"external_id"`
+	DestinationWallet string         `json:"destination_wallet"`
+	DestinationMint   string         `json:"destination_mint"`
+	Amount            int64          `json:"amount"`
+	Status            PaymentStatus  `json:"status"`
+	Message           sql.NullString `json:"message"`
+	ExpiresAt         sql.NullTime   `json:"expires_at"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         sql.NullTime   `json:"updated_at"`
 }
 
 type Token struct {
@@ -138,13 +127,21 @@ type Token struct {
 }
 
 type Transaction struct {
-	ID             uuid.UUID         `json:"id"`
-	PaymentID      uuid.UUID         `json:"payment_id"`
-	Reference      string            `json:"reference"`
-	Amount         int64             `json:"amount"`
-	DiscountAmount int64             `json:"discount_amount"`
-	TxSignature    sql.NullString    `json:"tx_signature"`
-	Status         TransactionStatus `json:"status"`
-	CreatedAt      time.Time         `json:"created_at"`
-	UpdatedAt      sql.NullTime      `json:"updated_at"`
+	ID                uuid.UUID         `json:"id"`
+	PaymentID         uuid.UUID         `json:"payment_id"`
+	Reference         string            `json:"reference"`
+	SourceWallet      string            `json:"source_wallet"`
+	SourceMint        string            `json:"source_mint"`
+	DestinationWallet string            `json:"destination_wallet"`
+	DestinationMint   string            `json:"destination_mint"`
+	Amount            int64             `json:"amount"`
+	DiscountAmount    int64             `json:"discount_amount"`
+	TotalAmount       int64             `json:"total_amount"`
+	Message           sql.NullString    `json:"message"`
+	Memo              sql.NullString    `json:"memo"`
+	ApplyBonus        sql.NullBool      `json:"apply_bonus"`
+	TxSignature       sql.NullString    `json:"tx_signature"`
+	Status            TransactionStatus `json:"status"`
+	CreatedAt         time.Time         `json:"created_at"`
+	UpdatedAt         sql.NullTime      `json:"updated_at"`
 }

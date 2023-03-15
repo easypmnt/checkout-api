@@ -17,3 +17,4 @@ solana/solana_config_test.go
 cmd/tests/*
 .env
 mint_req_example.txt
+**/local_test.go
