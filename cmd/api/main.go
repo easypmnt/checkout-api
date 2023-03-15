@@ -30,6 +30,7 @@ import (
 
 func main() {
 	// Init logger
+	logrus.SetReportCaller(true)
 	logger := logrus.WithFields(logrus.Fields{
 		"app":       appName,
 		"build_tag": buildTagRuntime,

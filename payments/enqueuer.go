@@ -92,15 +92,12 @@ func (e *Enqueuer) enqueueTask(ctx context.Context, task *asynq.Task, opts ...as
 func (e *Enqueuer) CheckPaymentByReference(ctx context.Context, reference string) error {
 	task, err := json.Marshal(ReferencePayload{Reference: reference})
 	if err != nil {
-		return fmt.Errorf("failed to marshal task payload: %w", err)
+		return fmt.Errorf("CheckPaymentByReference: failed to marshal task payload: %w", err)
 	}
 
-	return e.enqueueTask(
-		ctx,
-		asynq.NewTask(TaskCheckPaymentByReference, task),
-		asynq.Queue(e.queueName),
-		asynq.Deadline(time.Now().Add(e.taskDeadline)),
-		asynq.MaxRetry(100),
-		asynq.Unique(e.taskDeadline),
-	)
+	if err := e.enqueueTask(ctx, asynq.NewTask(TaskCheckPaymentByReference, task)); err != nil {
+		return fmt.Errorf("CheckPaymentByReference: %w", err)
+	}
+
+	return nil
 }
