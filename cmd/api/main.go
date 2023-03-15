@@ -191,7 +191,7 @@ func main() {
 	}
 
 	time.Sleep(5 * time.Second) // wait for all goroutines to finish
-	logger.Info("server successfuly shutdown")
+	logger.Info("server successfully shutdown")
 }
 
 // newCtx creates a new context that is cancelled when an interrupt signal is received.
