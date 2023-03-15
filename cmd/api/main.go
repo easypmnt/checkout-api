@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"os"
 	"os/signal"
 	"syscall"
@@ -99,12 +98,7 @@ func main() {
 	// Setup event listener
 	wsConn := openWebsocketConnection(ctx, solanaWSSEndpoint, logger, eg)
 	eventClient := websocketrpc.NewClient(wsConn,
-		websocketrpc.WithEventHandler(
-			websocketrpc.EventAccountNotification,
-			func(base58Addr string, _ json.RawMessage) error {
-				return paymentEnqueuer.CheckPaymentByReference(ctx, base58Addr)
-			},
-		),
+		websocketrpc.WithEventsEmitter(eventEmitter),
 	)
 
 	var paymentService payments.PaymentService

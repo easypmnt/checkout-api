@@ -43,44 +43,6 @@ func (rc *responseCallbacks) Delete(id uint64) {
 	delete(rc.m, id)
 }
 
-// eventHandlers is a map of event name to event handler.
-type eventHandlers struct {
-	sync.RWMutex
-	m map[string]EventHandler
-}
-
-// newEventHandlers returns a new eventHandlers.
-func newEventHandlers() *eventHandlers {
-	return &eventHandlers{
-		m: make(map[string]EventHandler),
-	}
-}
-
-// Set sets the event handler for the given event name.
-func (eh *eventHandlers) Set(name string, h EventHandler) {
-	eh.Lock()
-	defer eh.Unlock()
-	eh.m[name] = h
-}
-
-// Get gets the event handler for the given event name.
-func (eh *eventHandlers) Get(name string) (EventHandler, bool) {
-	eh.RLock()
-	defer eh.RUnlock()
-	h, ok := eh.m[name]
-	if ok && h != nil {
-		return h, true
-	}
-	return nil, false
-}
-
-// Delete deletes the event handler for the given event name.
-func (eh *eventHandlers) Delete(name string) {
-	eh.Lock()
-	defer eh.Unlock()
-	delete(eh.m, name)
-}
-
 // subscriptions is a map of subscription ID to event name.
 type subscriptions struct {
 	sync.RWMutex
