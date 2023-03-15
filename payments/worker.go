@@ -95,7 +95,7 @@ func (w *Worker) CheckPaymentByReference(ctx context.Context, t *asynq.Task) err
 		return fmt.Errorf("failed to validate transaction by reference: %w", err)
 	}
 
-	if err := w.svc.UpdateTransaction(ctx, p.Reference, tx.Status, txSign); err != nil {
+	if err := w.svc.UpdateTransaction(ctx, p.Reference, TransactionStatusCompleted, txSign); err != nil {
 		return fmt.Errorf("failed to update transaction status: %w", err)
 	}
 
