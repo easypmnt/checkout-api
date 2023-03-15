@@ -10,8 +10,10 @@ import (
 
 // Task names.
 const (
-	TastMarkPaymentsAsExpired   = "mark_payments_as_expired"
-	TaskCheckPaymentByReference = "check_payment_by_reference"
+	TastMarkPaymentsAsExpired     = "mark_payments_as_expired"
+	TaskCheckPaymentByReference   = "check_payment_by_reference"
+	TaskMarkTransactionsAsExpired = "mark_transactions_as_expired"
+	TaskCheckPendingTransactions  = "check_pending_transactions"
 )
 
 // Reference payload to check payment by reference task.
@@ -24,27 +26,37 @@ type (
 	Worker struct {
 		svc paymentService
 		sol workerSolanaClient
+		enq paymentEnqueuer
 	}
 
 	paymentService interface {
 		MarkPaymentsAsExpired(ctx context.Context) error
 		GetTransactionByReference(ctx context.Context, reference string) (*Transaction, error)
 		UpdateTransaction(ctx context.Context, reference string, status TransactionStatus, signature string) error
+		MarkTransactionsAsExpired(ctx context.Context) error
+		GetPendingTransactions(ctx context.Context) ([]*Transaction, error)
 	}
 
 	workerSolanaClient interface {
 		ValidateTransactionByReference(ctx context.Context, reference, destination string, amount uint64, mint string) (string, error)
 	}
+
+	paymentEnqueuer interface {
+		CheckPaymentByReference(ctx context.Context, reference string) error
+	}
 )
 
 // NewWorker creates a new payments task handler.
-func NewWorker(svc paymentService, sol workerSolanaClient) *Worker {
-	return &Worker{svc: svc}
+func NewWorker(svc paymentService, sol workerSolanaClient, enq paymentEnqueuer) *Worker {
+	return &Worker{svc: svc, sol: sol, enq: enq}
 }
 
 // Register registers task handlers for email delivery.
 func (w *Worker) Register(mux *asynq.ServeMux) {
 	mux.HandleFunc(TastMarkPaymentsAsExpired, w.MarkPaymentsAsExpired)
+	mux.HandleFunc(TaskCheckPaymentByReference, w.CheckPaymentByReference)
+	mux.HandleFunc(TaskMarkTransactionsAsExpired, w.MarkTransactionsAsExpired)
+	mux.HandleFunc(TaskCheckPendingTransactions, w.CheckPendingTransactions)
 }
 
 // FireEvent sends a webhook event to the specified URL.
@@ -85,6 +97,31 @@ func (w *Worker) CheckPaymentByReference(ctx context.Context, t *asynq.Task) err
 
 	if err := w.svc.UpdateTransaction(ctx, p.Reference, tx.Status, txSign); err != nil {
 		return fmt.Errorf("failed to update transaction status: %w", err)
+	}
+
+	return nil
+}
+
+// MarkTransactionsAsExpired marks transactions as expired.
+func (w *Worker) MarkTransactionsAsExpired(ctx context.Context, t *asynq.Task) error {
+	if err := w.svc.MarkTransactionsAsExpired(ctx); err != nil {
+		return fmt.Errorf("worker: %w", err)
+	}
+
+	return nil
+}
+
+// CheckPendingTransactions checks pending transactions.
+func (w *Worker) CheckPendingTransactions(ctx context.Context, t *asynq.Task) error {
+	txs, err := w.svc.GetPendingTransactions(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get pending transactions: %w", err)
+	}
+
+	for _, tx := range txs {
+		if err := w.enq.CheckPaymentByReference(ctx, tx.Reference); err != nil {
+			return fmt.Errorf("failed to enqueue check payment by reference task: %w", err)
+		}
 	}
 
 	return nil

@@ -52,5 +52,5 @@ const (
 // FireEventPayload is the payload for the webhook:fire_event task.
 type FireEventPayload struct {
 	Event   string      `json:"event"`
-	Payload PaymentData `json:"payload"`
+	Payload interface{} `json:"payload"`
 }

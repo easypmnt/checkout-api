@@ -6,8 +6,10 @@ require (
 	filippo.io/edwards25519 v1.0.0-rc.1
 	github.com/dmitrymomot/go-env v1.0.2
 	github.com/dmitrymomot/random v1.0.6
+	github.com/dustin/go-broadcast v0.0.0-20211018055107-71439988bd91
 	github.com/everFinance/goar v1.5.2
 	github.com/fatih/color v1.15.0
+	github.com/gin-contrib/sse v0.1.0
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/oauth v0.0.0-20210913085627-d937e221b3ef

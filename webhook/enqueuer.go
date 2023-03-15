@@ -86,7 +86,7 @@ func (e *Enqueuer) enqueueTask(ctx context.Context, task *asynq.Task) error {
 
 // FireEvent enqueues a task to fire an event.
 // This function returns an error if the task could not be enqueued.
-func (e *Enqueuer) FireEvent(ctx context.Context, event string, payload PaymentData) error {
+func (e *Enqueuer) FireEvent(ctx context.Context, event string, payload interface{}) error {
 	task, err := json.Marshal(FireEventPayload{
 		Event:   event,
 		Payload: payload,

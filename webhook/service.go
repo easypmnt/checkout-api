@@ -94,7 +94,7 @@ func (s *Service) Send(url string, payload interface{}) (*http.Response, error) 
 }
 
 // FireEvent sends a webhook event to the webhook url.
-func (s *Service) FireEvent(event string, payload PaymentData) error {
+func (s *Service) FireEvent(event string, payload interface{}) error {
 	if s.webhookURI == "" {
 		return fmt.Errorf("webhook uri is not set")
 	}
@@ -103,7 +103,7 @@ func (s *Service) FireEvent(event string, payload PaymentData) error {
 }
 
 // fireEvent sends a webhook event to the webhook url.
-func (s *Service) fireEvent(event, url string, payload PaymentData) error {
+func (s *Service) fireEvent(event, url string, payload interface{}) error {
 	reqData := WebhookRequestPayload{
 		Event: event,
 		Data:  payload,

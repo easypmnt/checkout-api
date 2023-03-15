@@ -50,5 +50,7 @@ type (
 		GetTransactionByReference(ctx context.Context, reference string) (repository.Transaction, error)
 		GetTransactionsByPaymentID(ctx context.Context, paymentID uuid.UUID) ([]repository.Transaction, error)
 		UpdateTransactionByReference(ctx context.Context, arg repository.UpdateTransactionByReferenceParams) (repository.Transaction, error)
+		GetPendingTransactions(ctx context.Context) ([]repository.Transaction, error)
+		MarkTransactionsAsExpired(ctx context.Context) error
 	}
 )

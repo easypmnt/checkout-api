@@ -45,6 +45,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getPaymentByExternalIDStmt, err = db.PrepareContext(ctx, getPaymentByExternalID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetPaymentByExternalID: %w", err)
 	}
+	if q.getPendingTransactionsStmt, err = db.PrepareContext(ctx, getPendingTransactions); err != nil {
+		return nil, fmt.Errorf("error preparing query GetPendingTransactions: %w", err)
+	}
 	if q.getTokenStmt, err = db.PrepareContext(ctx, getToken); err != nil {
 		return nil, fmt.Errorf("error preparing query GetToken: %w", err)
 	}
@@ -62,6 +65,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.markPaymentsExpiredStmt, err = db.PrepareContext(ctx, markPaymentsExpired); err != nil {
 		return nil, fmt.Errorf("error preparing query MarkPaymentsExpired: %w", err)
+	}
+	if q.markTransactionsAsExpiredStmt, err = db.PrepareContext(ctx, markTransactionsAsExpired); err != nil {
+		return nil, fmt.Errorf("error preparing query MarkTransactionsAsExpired: %w", err)
 	}
 	if q.storeTokenStmt, err = db.PrepareContext(ctx, storeToken); err != nil {
 		return nil, fmt.Errorf("error preparing query StoreToken: %w", err)
@@ -112,6 +118,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getPaymentByExternalIDStmt: %w", cerr)
 		}
 	}
+	if q.getPendingTransactionsStmt != nil {
+		if cerr := q.getPendingTransactionsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getPendingTransactionsStmt: %w", cerr)
+		}
+	}
 	if q.getTokenStmt != nil {
 		if cerr := q.getTokenStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getTokenStmt: %w", cerr)
@@ -140,6 +151,11 @@ func (q *Queries) Close() error {
 	if q.markPaymentsExpiredStmt != nil {
 		if cerr := q.markPaymentsExpiredStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing markPaymentsExpiredStmt: %w", cerr)
+		}
+	}
+	if q.markTransactionsAsExpiredStmt != nil {
+		if cerr := q.markTransactionsAsExpiredStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing markTransactionsAsExpiredStmt: %w", cerr)
 		}
 	}
 	if q.storeTokenStmt != nil {
@@ -203,12 +219,14 @@ type Queries struct {
 	deleteTokensByCredentialStmt                     *sql.Stmt
 	getPaymentStmt                                   *sql.Stmt
 	getPaymentByExternalIDStmt                       *sql.Stmt
+	getPendingTransactionsStmt                       *sql.Stmt
 	getTokenStmt                                     *sql.Stmt
 	getTransactionStmt                               *sql.Stmt
 	getTransactionByPaymentIDSourceWalletAndMintStmt *sql.Stmt
 	getTransactionByReferenceStmt                    *sql.Stmt
 	getTransactionsByPaymentIDStmt                   *sql.Stmt
 	markPaymentsExpiredStmt                          *sql.Stmt
+	markTransactionsAsExpiredStmt                    *sql.Stmt
 	storeTokenStmt                                   *sql.Stmt
 	updatePaymentStatusStmt                          *sql.Stmt
 	updateTransactionByReferenceStmt                 *sql.Stmt
@@ -225,12 +243,14 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deleteTokensByCredentialStmt: q.deleteTokensByCredentialStmt,
 		getPaymentStmt:               q.getPaymentStmt,
 		getPaymentByExternalIDStmt:   q.getPaymentByExternalIDStmt,
+		getPendingTransactionsStmt:   q.getPendingTransactionsStmt,
 		getTokenStmt:                 q.getTokenStmt,
 		getTransactionStmt:           q.getTransactionStmt,
 		getTransactionByPaymentIDSourceWalletAndMintStmt: q.getTransactionByPaymentIDSourceWalletAndMintStmt,
 		getTransactionByReferenceStmt:                    q.getTransactionByReferenceStmt,
 		getTransactionsByPaymentIDStmt:                   q.getTransactionsByPaymentIDStmt,
 		markPaymentsExpiredStmt:                          q.markPaymentsExpiredStmt,
+		markTransactionsAsExpiredStmt:                    q.markTransactionsAsExpiredStmt,
 		storeTokenStmt:                                   q.storeTokenStmt,
 		updatePaymentStatusStmt:                          q.updatePaymentStatusStmt,
 		updateTransactionByReferenceStmt:                 q.updateTransactionByReferenceStmt,

@@ -3,11 +3,9 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/easypmnt/checkout-api/auth"
 	"github.com/easypmnt/checkout-api/events"
@@ -17,6 +15,7 @@ import (
 	"github.com/easypmnt/checkout-api/repository"
 	"github.com/easypmnt/checkout-api/server"
 	"github.com/easypmnt/checkout-api/solana"
+	"github.com/easypmnt/checkout-api/sse"
 	"github.com/easypmnt/checkout-api/webhook"
 	"github.com/easypmnt/checkout-api/websocketrpc"
 	"github.com/go-chi/oauth"
@@ -33,6 +32,13 @@ func main() {
 		"app":       appName,
 		"build_tag": buildTagRuntime,
 	})
+	if appDebug {
+		logger.Logger.SetLevel(logrus.DebugLevel)
+	} else {
+		logger.Logger.SetLevel(logrus.InfoLevel)
+	}
+
+	defer func() { logger.Info("server successfully shutdown") }()
 
 	// Errgroup with context
 	eg, ctx := errgroup.WithContext(newCtx(logger))
@@ -86,20 +92,14 @@ func main() {
 
 	// webhook enqueuer
 	webhookEnqueuer := webhook.NewEnqueuer(asynqClient)
-	_ = webhookEnqueuer
 
 	// Payment worker enqueuer
 	paymentEnqueuer := payments.NewEnqueuer(asynqClient)
 
 	// Setup event listener
 	wsConn := openWebsocketConnection(ctx, solanaWSSEndpoint, logger, eg)
-	eventClient := websocketrpc.NewClient(wsConn,
-		websocketrpc.WithEventHandler(
-			websocketrpc.EventAccountNotification,
-			func(base58Addr string, _ json.RawMessage) error {
-				return paymentEnqueuer.CheckPaymentByReference(ctx, base58Addr)
-			},
-		),
+	websocketrpcClient := websocketrpc.NewClient(wsConn,
+		websocketrpc.WithEventsEmitter(eventEmitter),
 	)
 
 	var paymentService payments.PaymentService
@@ -125,8 +125,20 @@ func main() {
 	// Logging decorator
 	paymentService = payments.NewServiceLogger(paymentService, logger)
 
+	// Init sse service
+	sseService := sse.NewService(sse.NewMemStorage())
+
 	// Event listener
 	eventEmitter.On(events.TransactionUpdated, payments.UpdateTransactionStatusListener(paymentService))
+	eventEmitter.On(events.TransactionCreated, payments.TransactionCreatedListener(paymentService, paymentEnqueuer))
+	eventEmitter.ListenEvents(
+		webhook.TranslateEventsToWebhookEvents(webhookEnqueuer),
+		events.AllEvents...,
+	)
+	eventEmitter.ListenEvents(
+		sse.TranslateEventsToWebhookEvents(sseService),
+		events.AllEvents...,
+	)
 
 	// Mount HTTP endpoints
 	{
@@ -157,6 +169,9 @@ func main() {
 			),
 			kitlog.NewLogger(logger), oauthMdw,
 		))
+
+		// sse service
+		r.Mount("/sse", sse.MakeHTTPHandler(sseService, logger))
 	}
 
 	// Run HTTP server
@@ -166,7 +181,7 @@ func main() {
 	eg.Go(runQueueServer(
 		redisConnOpt,
 		logger,
-		payments.NewWorker(paymentService, solClient),
+		payments.NewWorker(paymentService, solClient, paymentEnqueuer),
 		webhook.NewWorker(webhook.NewService(
 			webhook.WithSignatureSecret(webhookSignatureSecret),
 			webhook.WithWebhookURI(webhookURI),
@@ -182,16 +197,13 @@ func main() {
 
 	// Run event listener
 	eg.Go(func() error {
-		return eventClient.Run(ctx)
+		return websocketrpcClient.Run(ctx)
 	})
 
 	// Run all goroutines
 	if err := eg.Wait(); err != nil {
 		logger.WithError(err).Fatal("error occurred")
 	}
-
-	time.Sleep(5 * time.Second) // wait for all goroutines to finish
-	logger.Info("server successfully shutdown")
 }
 
 // newCtx creates a new context that is cancelled when an interrupt signal is received.

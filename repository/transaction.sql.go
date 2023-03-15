@@ -101,6 +101,51 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 	return i, err
 }
 
+const getPendingTransactions = `-- name: GetPendingTransactions :many
+SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE status = 'pending'::transaction_status
+`
+
+func (q *Queries) GetPendingTransactions(ctx context.Context) ([]Transaction, error) {
+	rows, err := q.query(ctx, q.getPendingTransactionsStmt, getPendingTransactions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Transaction
+	for rows.Next() {
+		var i Transaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.PaymentID,
+			&i.Reference,
+			&i.SourceWallet,
+			&i.SourceMint,
+			&i.DestinationWallet,
+			&i.DestinationMint,
+			&i.Amount,
+			&i.DiscountAmount,
+			&i.TotalAmount,
+			&i.Message,
+			&i.Memo,
+			&i.ApplyBonus,
+			&i.TxSignature,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTransaction = `-- name: GetTransaction :one
 SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE id = $1
 `
@@ -243,6 +288,18 @@ func (q *Queries) GetTransactionsByPaymentID(ctx context.Context, paymentID uuid
 		return nil, err
 	}
 	return items, nil
+}
+
+const markTransactionsAsExpired = `-- name: MarkTransactionsAsExpired :exec
+UPDATE transactions SET status = 'expired'::transaction_status 
+WHERE status = 'pending'::transaction_status AND payment_id IN (
+    SELECT id FROM payments WHERE status = 'expired'::payment_status
+)
+`
+
+func (q *Queries) MarkTransactionsAsExpired(ctx context.Context) error {
+	_, err := q.exec(ctx, q.markTransactionsAsExpiredStmt, markTransactionsAsExpired)
+	return err
 }
 
 const updateTransactionByReference = `-- name: UpdateTransactionByReference :one

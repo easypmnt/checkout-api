@@ -2,43 +2,76 @@ package events
 
 // Predefined
 const (
-	PaymentCreated       EventName = "payment.created"
-	PaymentProcessing    EventName = "payment.processing"
-	PaymentCancelled     EventName = "payment.cancelled"
-	PaymentFailed        EventName = "payment.failed"
-	PaymentExpired       EventName = "payment.expired"
-	PaymentSucceeded     EventName = "payment.succeeded"
-	PaymentLinkGenerated EventName = "payment.link.generated"
-	TransactionCreated   EventName = "transaction.created"
-	TransactionUpdated   EventName = "transaction.updated"
+	PaymentCreated                  EventName = "payment.created"
+	PaymentProcessing               EventName = "payment.processing"
+	PaymentCancelled                EventName = "payment.cancelled"
+	PaymentFailed                   EventName = "payment.failed"
+	PaymentExpired                  EventName = "payment.expired"
+	PaymentSucceeded                EventName = "payment.succeeded"
+	PaymentLinkGenerated            EventName = "payment.link.generated"
+	TransactionCreated              EventName = "transaction.created"
+	TransactionUpdated              EventName = "transaction.updated"
+	TransacionReferenceNotification EventName = "transaction.reference.notification"
 )
+
+var AllEvents = []EventName{
+	PaymentCreated,
+	PaymentProcessing,
+	PaymentCancelled,
+	PaymentFailed,
+	PaymentExpired,
+	PaymentSucceeded,
+	PaymentLinkGenerated,
+	TransactionCreated,
+	TransactionUpdated,
+}
 
 // Event payloads.
 type (
-	PaymentCreatedPayload struct {
+	// PaymentID is an interface for all events that have payment_id field.
+	PaymentIDGetter interface {
+		GetPaymentID() string
+	}
+
+	// PaymentIDGetter struct for getting payment_id from event payload.
+	PaymentID struct {
 		PaymentID string `json:"payment_id"`
+	}
+
+	PaymentCreatedPayload struct {
+		PaymentID
 	}
 
 	PaymentStatusUpdatedPayload struct {
-		PaymentID string `json:"payment_id"`
-		Status    string `json:"status"`
+		PaymentID
+		Status string `json:"status"`
 	}
 
 	PaymentLinkGeneratedPayload struct {
-		PaymentID string `json:"payment_id"`
-		Link      string `json:"link"`
+		PaymentID
+		Link string `json:"link"`
 	}
 
 	TransactionCreatedPayload struct {
-		PaymentID     string `json:"payment_id"`
+		PaymentID
 		TransactionID string `json:"transaction_id"`
 		Reference     string `json:"reference"`
 	}
 
 	TransactionUpdatedPayload struct {
-		PaymentID string `json:"payment_id"`
+		PaymentID
 		Reference string `json:"reference"`
 		Status    string `json:"status"`
 		Signature string `json:"signature"`
 	}
+
+	ReferencePayload struct {
+		Reference string `json:"reference"`
+	}
 )
+
+// GetPaymentID returns payment_id from event payload.
+// This method is required for PaymentIDGetter interface.
+func (p PaymentID) GetPaymentID() string {
+	return p.PaymentID
+}

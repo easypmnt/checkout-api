@@ -70,14 +70,17 @@ func WithMaxRetry(n int) EnqueuerOption {
 }
 
 // enqueueTask enqueues a task to the queue.
-func (e *Enqueuer) enqueueTask(ctx context.Context, task *asynq.Task) error {
-	if _, err := e.client.Enqueue(
-		task,
-		asynq.Queue(e.queueName),
-		asynq.Deadline(time.Now().Add(e.taskDeadline)),
-		asynq.MaxRetry(e.maxRetry),
-		asynq.Unique(e.taskDeadline),
-	); err != nil {
+func (e *Enqueuer) enqueueTask(ctx context.Context, task *asynq.Task, opts ...asynq.Option) error {
+	if len(opts) == 0 {
+		opts = append(opts,
+			asynq.Queue(e.queueName),
+			asynq.Deadline(time.Now().Add(e.taskDeadline)),
+			asynq.MaxRetry(e.maxRetry),
+			asynq.Unique(e.taskDeadline),
+		)
+	}
+
+	if _, err := e.client.Enqueue(task, opts...); err != nil {
 		return fmt.Errorf("failed to enqueue task: %w", err)
 	}
 
@@ -92,5 +95,12 @@ func (e *Enqueuer) CheckPaymentByReference(ctx context.Context, reference string
 		return fmt.Errorf("failed to marshal task payload: %w", err)
 	}
 
-	return e.enqueueTask(ctx, asynq.NewTask(TaskCheckPaymentByReference, task))
+	return e.enqueueTask(
+		ctx,
+		asynq.NewTask(TaskCheckPaymentByReference, task),
+		asynq.Queue(e.queueName),
+		asynq.Deadline(time.Now().Add(e.taskDeadline)),
+		asynq.MaxRetry(100),
+		asynq.Unique(e.taskDeadline),
+	)
 }

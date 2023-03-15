@@ -9,7 +9,7 @@ RETURN NEW;
 END;
 $$ LANGUAGE 'plpgsql';
 
-CREATE TYPE transaction_status AS ENUM ('pending', 'completed', 'failed');
+CREATE TYPE transaction_status AS ENUM ('pending', 'completed', 'failed', 'expired');
 
 CREATE TABLE IF NOT EXISTS transactions ( 
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),

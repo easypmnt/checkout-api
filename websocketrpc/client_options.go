@@ -7,9 +7,9 @@ func WithLogger(l logger) ClientOption {
 	}
 }
 
-// WithEventHandler sets an event handler for the client.
-func WithEventHandler(eventName string, handler EventHandler) ClientOption {
+// WithEventsEmitter sets the events emitter for the client.
+func WithEventsEmitter(e eventsEmitter) ClientOption {
 	return func(c *Client) {
-		c.eventHandlers.Set(eventName, handler)
+		c.emitter = e
 	}
 }

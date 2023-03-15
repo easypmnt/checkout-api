@@ -15,7 +15,7 @@ type (
 	}
 
 	service interface {
-		FireEvent(event string, payload PaymentData) error
+		FireEvent(event string, payload interface{}) error
 	}
 )
 

@@ -30,4 +30,8 @@ type PaymentService interface {
 	GetTransactionByReference(ctx context.Context, reference string) (*Transaction, error)
 	// UpdateTransaction updates the status and signature of the transaction with the given reference.
 	UpdateTransaction(ctx context.Context, reference string, status TransactionStatus, signature string) error
+	// GetPendingTransactions returns all pending transactions.
+	GetPendingTransactions(ctx context.Context) ([]*Transaction, error)
+	// MarkTransactionsAsExpired marks all transactions that are expired as expired.
+	MarkTransactionsAsExpired(ctx context.Context) error
 }
