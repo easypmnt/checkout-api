@@ -167,19 +167,20 @@ func (s *Service) BuildTransaction(ctx context.Context, tx *Transaction) (*Trans
 	tx.Transaction = base64Tx
 
 	if _, err := s.repo.CreateTransaction(ctx, repository.CreateTransactionParams{
-		PaymentID:         tx.PaymentID,
-		Reference:         tx.Reference,
-		SourceWallet:      tx.SourceWallet,
-		SourceMint:        tx.SourceMint,
-		DestinationWallet: tx.DestinationWallet,
-		DestinationMint:   tx.DestinationMint,
-		Amount:            int64(tx.Amount),
-		DiscountAmount:    int64(tx.DiscountAmount),
-		TotalAmount:       int64(tx.TotalAmount),
-		Message:           sql.NullString{String: tx.Message, Valid: tx.Message != ""},
-		Memo:              sql.NullString{String: tx.Memo, Valid: tx.Memo != ""},
-		ApplyBonus:        sql.NullBool{Bool: tx.ApplyBonus, Valid: true},
-		Status:            repository.TransactionStatusPending,
+		PaymentID:          tx.PaymentID,
+		Reference:          tx.Reference,
+		SourceWallet:       tx.SourceWallet,
+		SourceMint:         tx.SourceMint,
+		DestinationWallet:  tx.DestinationWallet,
+		DestinationMint:    tx.DestinationMint,
+		Amount:             int64(tx.Amount),
+		DiscountAmount:     int64(tx.DiscountAmount),
+		TotalAmount:        int64(tx.TotalAmount),
+		Message:            sql.NullString{String: tx.Message, Valid: tx.Message != ""},
+		Memo:               sql.NullString{String: tx.Memo, Valid: tx.Memo != ""},
+		ApplyBonus:         sql.NullBool{Bool: tx.ApplyBonus, Valid: true},
+		AccruedBonusAmount: int64(tx.AccruedBonusAmount),
+		Status:             repository.TransactionStatusPending,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}

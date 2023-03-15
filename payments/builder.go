@@ -196,6 +196,8 @@ func (b *PaymentBuilder) mintBonus(builder *solana.TransactionBuilder) *solana.T
 		return builder
 	}
 
+	b.tx.AccruedBonusAmount = bonusAmount
+
 	return builder.AddInstruction(solana.MintFungibleToken(solana.MintFungibleTokenParams{
 		Funder:    b.tx.SourceWallet,
 		Mint:      b.config.BonusMintAddress,

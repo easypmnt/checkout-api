@@ -43,22 +43,23 @@ type Payment struct {
 }
 
 type Transaction struct {
-	ID                uuid.UUID         `json:"id,omitempty"`
-	PaymentID         uuid.UUID         `json:"payment_id,omitempty"`
-	Reference         string            `json:"reference,omitempty"`
-	SourceWallet      string            `json:"source_wallet,omitempty"`
-	SourceMint        string            `json:"source_mint,omitempty"`
-	DestinationWallet string            `json:"destination_wallet,omitempty"`
-	DestinationMint   string            `json:"destination_mint,omitempty"`
-	Amount            uint64            `json:"amount,omitempty"`
-	DiscountAmount    uint64            `json:"discount_amount,omitempty"`
-	TotalAmount       uint64            `json:"total_amount,omitempty"`
-	Message           string            `json:"message,omitempty"`
-	Memo              string            `json:"memo,omitempty"`
-	ApplyBonus        bool              `json:"apply_bonus,omitempty"`
-	Transaction       string            `json:"transaction,omitempty"`
-	Status            TransactionStatus `json:"status,omitempty"`
-	Signature         string            `json:"signature,omitempty"`
+	ID                 uuid.UUID         `json:"id,omitempty"`
+	PaymentID          uuid.UUID         `json:"payment_id,omitempty"`
+	Reference          string            `json:"reference,omitempty"`
+	SourceWallet       string            `json:"source_wallet,omitempty"`
+	SourceMint         string            `json:"source_mint,omitempty"`
+	DestinationWallet  string            `json:"destination_wallet,omitempty"`
+	DestinationMint    string            `json:"destination_mint,omitempty"`
+	Amount             uint64            `json:"amount,omitempty"`
+	DiscountAmount     uint64            `json:"discount_amount,omitempty"`
+	TotalAmount        uint64            `json:"total_amount,omitempty"`
+	AccruedBonusAmount uint64            `json:"accrued_bonus_amount,omitempty"`
+	Message            string            `json:"message,omitempty"`
+	Memo               string            `json:"memo,omitempty"`
+	ApplyBonus         bool              `json:"apply_bonus,omitempty"`
+	Transaction        string            `json:"transaction,omitempty"`
+	Status             TransactionStatus `json:"status,omitempty"`
+	Signature          string            `json:"signature,omitempty"`
 }
 
 // cast repository.Payment to payments.Payment
@@ -123,20 +124,21 @@ func castToRepositoryPaymentStatus(status PaymentStatus) repository.PaymentStatu
 // cast repository.Transaction to payments.Transaction
 func castFromRepositoryTransaction(t repository.Transaction, conf Config) *Transaction {
 	result := &Transaction{
-		ID:                t.ID,
-		PaymentID:         t.PaymentID,
-		Reference:         t.Reference,
-		SourceWallet:      t.SourceWallet,
-		SourceMint:        t.SourceMint,
-		DestinationWallet: t.DestinationWallet,
-		DestinationMint:   t.DestinationMint,
-		Amount:            uint64(t.Amount),
-		DiscountAmount:    uint64(t.DiscountAmount),
-		TotalAmount:       uint64(t.TotalAmount),
-		Message:           t.Message.String,
-		Memo:              t.Memo.String,
-		Status:            castFromRepositoryTransactionStatus(t.Status),
-		Signature:         t.TxSignature.String,
+		ID:                 t.ID,
+		PaymentID:          t.PaymentID,
+		Reference:          t.Reference,
+		SourceWallet:       t.SourceWallet,
+		SourceMint:         t.SourceMint,
+		DestinationWallet:  t.DestinationWallet,
+		DestinationMint:    t.DestinationMint,
+		Amount:             uint64(t.Amount),
+		DiscountAmount:     uint64(t.DiscountAmount),
+		TotalAmount:        uint64(t.TotalAmount),
+		AccruedBonusAmount: uint64(t.AccruedBonusAmount),
+		Message:            t.Message.String,
+		Memo:               t.Memo.String,
+		Status:             castFromRepositoryTransactionStatus(t.Status),
+		Signature:          t.TxSignature.String,
 	}
 
 	if t.ApplyBonus.Valid {

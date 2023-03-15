@@ -23,6 +23,7 @@ INSERT INTO transactions (
     amount, 
     discount_amount, 
     total_amount,
+    accrued_bonus_amount,
     message,
     memo,
     apply_bonus,
@@ -41,25 +42,27 @@ VALUES (
     $10,
     $11,
     $12,
-    $13
+    $13,
+    $14
 )
-RETURNING id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at
+RETURNING id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, accrued_bonus_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at
 `
 
 type CreateTransactionParams struct {
-	PaymentID         uuid.UUID         `json:"payment_id"`
-	Reference         string            `json:"reference"`
-	SourceWallet      string            `json:"source_wallet"`
-	SourceMint        string            `json:"source_mint"`
-	DestinationWallet string            `json:"destination_wallet"`
-	DestinationMint   string            `json:"destination_mint"`
-	Amount            int64             `json:"amount"`
-	DiscountAmount    int64             `json:"discount_amount"`
-	TotalAmount       int64             `json:"total_amount"`
-	Message           sql.NullString    `json:"message"`
-	Memo              sql.NullString    `json:"memo"`
-	ApplyBonus        sql.NullBool      `json:"apply_bonus"`
-	Status            TransactionStatus `json:"status"`
+	PaymentID          uuid.UUID         `json:"payment_id"`
+	Reference          string            `json:"reference"`
+	SourceWallet       string            `json:"source_wallet"`
+	SourceMint         string            `json:"source_mint"`
+	DestinationWallet  string            `json:"destination_wallet"`
+	DestinationMint    string            `json:"destination_mint"`
+	Amount             int64             `json:"amount"`
+	DiscountAmount     int64             `json:"discount_amount"`
+	TotalAmount        int64             `json:"total_amount"`
+	AccruedBonusAmount int64             `json:"accrued_bonus_amount"`
+	Message            sql.NullString    `json:"message"`
+	Memo               sql.NullString    `json:"memo"`
+	ApplyBonus         sql.NullBool      `json:"apply_bonus"`
+	Status             TransactionStatus `json:"status"`
 }
 
 func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error) {
@@ -73,6 +76,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		arg.Amount,
 		arg.DiscountAmount,
 		arg.TotalAmount,
+		arg.AccruedBonusAmount,
 		arg.Message,
 		arg.Memo,
 		arg.ApplyBonus,
@@ -90,6 +94,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		&i.Amount,
 		&i.DiscountAmount,
 		&i.TotalAmount,
+		&i.AccruedBonusAmount,
 		&i.Message,
 		&i.Memo,
 		&i.ApplyBonus,
@@ -102,7 +107,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 }
 
 const getPendingTransactions = `-- name: GetPendingTransactions :many
-SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE status = 'pending'::transaction_status
+SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, accrued_bonus_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE status = 'pending'::transaction_status
 `
 
 func (q *Queries) GetPendingTransactions(ctx context.Context) ([]Transaction, error) {
@@ -125,6 +130,7 @@ func (q *Queries) GetPendingTransactions(ctx context.Context) ([]Transaction, er
 			&i.Amount,
 			&i.DiscountAmount,
 			&i.TotalAmount,
+			&i.AccruedBonusAmount,
 			&i.Message,
 			&i.Memo,
 			&i.ApplyBonus,
@@ -147,7 +153,7 @@ func (q *Queries) GetPendingTransactions(ctx context.Context) ([]Transaction, er
 }
 
 const getTransaction = `-- name: GetTransaction :one
-SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE id = $1
+SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, accrued_bonus_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE id = $1
 `
 
 func (q *Queries) GetTransaction(ctx context.Context, id uuid.UUID) (Transaction, error) {
@@ -164,6 +170,7 @@ func (q *Queries) GetTransaction(ctx context.Context, id uuid.UUID) (Transaction
 		&i.Amount,
 		&i.DiscountAmount,
 		&i.TotalAmount,
+		&i.AccruedBonusAmount,
 		&i.Message,
 		&i.Memo,
 		&i.ApplyBonus,
@@ -176,7 +183,7 @@ func (q *Queries) GetTransaction(ctx context.Context, id uuid.UUID) (Transaction
 }
 
 const getTransactionByPaymentIDSourceWalletAndMint = `-- name: GetTransactionByPaymentIDSourceWalletAndMint :one
-SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions 
+SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, accrued_bonus_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions 
 WHERE payment_id = $1 
     AND source_wallet = $2 
     AND source_mint = $3
@@ -205,6 +212,7 @@ func (q *Queries) GetTransactionByPaymentIDSourceWalletAndMint(ctx context.Conte
 		&i.Amount,
 		&i.DiscountAmount,
 		&i.TotalAmount,
+		&i.AccruedBonusAmount,
 		&i.Message,
 		&i.Memo,
 		&i.ApplyBonus,
@@ -217,7 +225,7 @@ func (q *Queries) GetTransactionByPaymentIDSourceWalletAndMint(ctx context.Conte
 }
 
 const getTransactionByReference = `-- name: GetTransactionByReference :one
-SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE reference = $1
+SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, accrued_bonus_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE reference = $1
 `
 
 func (q *Queries) GetTransactionByReference(ctx context.Context, reference string) (Transaction, error) {
@@ -234,6 +242,7 @@ func (q *Queries) GetTransactionByReference(ctx context.Context, reference strin
 		&i.Amount,
 		&i.DiscountAmount,
 		&i.TotalAmount,
+		&i.AccruedBonusAmount,
 		&i.Message,
 		&i.Memo,
 		&i.ApplyBonus,
@@ -246,7 +255,7 @@ func (q *Queries) GetTransactionByReference(ctx context.Context, reference strin
 }
 
 const getTransactionsByPaymentID = `-- name: GetTransactionsByPaymentID :many
-SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE payment_id = $1 ORDER BY created_at DESC
+SELECT id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, accrued_bonus_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at FROM transactions WHERE payment_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) GetTransactionsByPaymentID(ctx context.Context, paymentID uuid.UUID) ([]Transaction, error) {
@@ -269,6 +278,7 @@ func (q *Queries) GetTransactionsByPaymentID(ctx context.Context, paymentID uuid
 			&i.Amount,
 			&i.DiscountAmount,
 			&i.TotalAmount,
+			&i.AccruedBonusAmount,
 			&i.Message,
 			&i.Memo,
 			&i.ApplyBonus,
@@ -303,7 +313,7 @@ func (q *Queries) MarkTransactionsAsExpired(ctx context.Context) error {
 }
 
 const updateTransactionByReference = `-- name: UpdateTransactionByReference :one
-UPDATE transactions SET tx_signature = $1, status = $2 WHERE reference = $3 RETURNING id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at
+UPDATE transactions SET tx_signature = $1, status = $2 WHERE reference = $3 RETURNING id, payment_id, reference, source_wallet, source_mint, destination_wallet, destination_mint, amount, discount_amount, total_amount, accrued_bonus_amount, message, memo, apply_bonus, tx_signature, status, created_at, updated_at
 `
 
 type UpdateTransactionByReferenceParams struct {
@@ -326,6 +336,7 @@ func (q *Queries) UpdateTransactionByReference(ctx context.Context, arg UpdateTr
 		&i.Amount,
 		&i.DiscountAmount,
 		&i.TotalAmount,
+		&i.AccruedBonusAmount,
 		&i.Message,
 		&i.Memo,
 		&i.ApplyBonus,

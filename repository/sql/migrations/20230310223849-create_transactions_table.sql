@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount BIGINT NOT NULL,
     discount_amount BIGINT NOT NULL DEFAULT 0,
     total_amount BIGINT NOT NULL,
+    accrued_bonus_amount BIGINT NOT NULL DEFAULT 0,
     message VARCHAR DEFAULT NULL,
     memo VARCHAR DEFAULT NULL,
     apply_bonus BOOLEAN DEFAULT NULL,

@@ -128,21 +128,22 @@ type Token struct {
 }
 
 type Transaction struct {
-	ID                uuid.UUID         `json:"id"`
-	PaymentID         uuid.UUID         `json:"payment_id"`
-	Reference         string            `json:"reference"`
-	SourceWallet      string            `json:"source_wallet"`
-	SourceMint        string            `json:"source_mint"`
-	DestinationWallet string            `json:"destination_wallet"`
-	DestinationMint   string            `json:"destination_mint"`
-	Amount            int64             `json:"amount"`
-	DiscountAmount    int64             `json:"discount_amount"`
-	TotalAmount       int64             `json:"total_amount"`
-	Message           sql.NullString    `json:"message"`
-	Memo              sql.NullString    `json:"memo"`
-	ApplyBonus        sql.NullBool      `json:"apply_bonus"`
-	TxSignature       sql.NullString    `json:"tx_signature"`
-	Status            TransactionStatus `json:"status"`
-	CreatedAt         time.Time         `json:"created_at"`
-	UpdatedAt         sql.NullTime      `json:"updated_at"`
+	ID                 uuid.UUID         `json:"id"`
+	PaymentID          uuid.UUID         `json:"payment_id"`
+	Reference          string            `json:"reference"`
+	SourceWallet       string            `json:"source_wallet"`
+	SourceMint         string            `json:"source_mint"`
+	DestinationWallet  string            `json:"destination_wallet"`
+	DestinationMint    string            `json:"destination_mint"`
+	Amount             int64             `json:"amount"`
+	DiscountAmount     int64             `json:"discount_amount"`
+	TotalAmount        int64             `json:"total_amount"`
+	AccruedBonusAmount int64             `json:"accrued_bonus_amount"`
+	Message            sql.NullString    `json:"message"`
+	Memo               sql.NullString    `json:"memo"`
+	ApplyBonus         sql.NullBool      `json:"apply_bonus"`
+	TxSignature        sql.NullString    `json:"tx_signature"`
+	Status             TransactionStatus `json:"status"`
+	CreatedAt          time.Time         `json:"created_at"`
+	UpdatedAt          sql.NullTime      `json:"updated_at"`
 }
