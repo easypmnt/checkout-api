@@ -33,6 +33,11 @@ func main() {
 		"app":       appName,
 		"build_tag": buildTagRuntime,
 	})
+	if appDebug {
+		logger.Logger.SetLevel(logrus.DebugLevel)
+	} else {
+		logger.Logger.SetLevel(logrus.InfoLevel)
+	}
 
 	// Errgroup with context
 	eg, ctx := errgroup.WithContext(newCtx(logger))
