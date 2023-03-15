@@ -35,7 +35,7 @@ func MakeHTTPHandler(e Endpoints, log logger, authMdw middlewareFunc) http.Handl
 
 	// Without auth
 	r.Group(func(r chi.Router) {
-		r.Get("/checkout/{payment_id}", httptransport.NewServer(
+		r.Get("/checkout/{payment_id}/{mint}/{apply_bonus}", httptransport.NewServer(
 			e.GetAppInfo,
 			decodeGetAppInfoRequest,
 			httpencoder.EncodeResponseAsIs,
