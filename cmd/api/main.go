@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/easypmnt/checkout-api/auth"
 	"github.com/easypmnt/checkout-api/events"
@@ -38,6 +37,8 @@ func main() {
 	} else {
 		logger.Logger.SetLevel(logrus.InfoLevel)
 	}
+
+	defer func() { logger.Info("server successfully shutdown") }()
 
 	// Errgroup with context
 	eg, ctx := errgroup.WithContext(newCtx(logger))
@@ -97,7 +98,7 @@ func main() {
 
 	// Setup event listener
 	wsConn := openWebsocketConnection(ctx, solanaWSSEndpoint, logger, eg)
-	eventClient := websocketrpc.NewClient(wsConn,
+	websocketrpcClient := websocketrpc.NewClient(wsConn,
 		websocketrpc.WithEventsEmitter(eventEmitter),
 	)
 
@@ -196,16 +197,13 @@ func main() {
 
 	// Run event listener
 	eg.Go(func() error {
-		return eventClient.Run(ctx)
+		return websocketrpcClient.Run(ctx)
 	})
 
 	// Run all goroutines
 	if err := eg.Wait(); err != nil {
 		logger.WithError(err).Fatal("error occurred")
 	}
-
-	time.Sleep(5 * time.Second) // wait for all goroutines to finish
-	logger.Info("server successfully shutdown")
 }
 
 // newCtx creates a new context that is cancelled when an interrupt signal is received.

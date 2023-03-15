@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync/atomic"
-	"time"
 
 	"github.com/easypmnt/checkout-api/events"
 	"github.com/gorilla/websocket"
@@ -194,25 +193,9 @@ func (c *Client) UnsubscribeByAddress(base58Addr string) error {
 func (c *Client) unsubscribeAll() error {
 	subscriptions := c.subscriptions.GetAll()
 	for subID := range subscriptions {
-		if err := c.Unsubscribe(subID); err != nil {
-			c.log.Errorf("websocketrpc: unsubscribing all: %v", err)
-		}
+		c.Unsubscribe(subID)
 	}
-
-	// wait for all subscriptions to be removed
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			if c.subscriptions.Len() == 0 {
-				c.log.Infof("websocketrpc: unsubscribed from all accounts")
-				return nil // all subscriptions removed
-			}
-		case <-time.After(15 * time.Second):
-			return fmt.Errorf("websocketrpc: unsubscribing all: timed out")
-		}
-	}
+	return nil
 }
 
 // sendRequest sends a JSON-RPC v2 request to the websocket server.
@@ -234,40 +217,47 @@ func (c *Client) sendRequest(req *Request, callback ResponseCallback) error {
 
 // listener function listens for incoming JSON-RPC v2 events and notifications.
 // It calls the appropriate callback function.
-func (c *Client) listener() error {
+func (c *Client) listener(ctx context.Context) error {
 	for {
 		if c.conn == nil {
 			return ErrConnectionClosed
 		}
 
-		var msg json.RawMessage
-		if err := c.conn.ReadJSON(&msg); err != nil {
-			if e, ok := err.(*websocket.CloseError); ok {
-				return fmt.Errorf("websocketrpc: listen: connection closed with code %d (%s)", e.Code, e.Text)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			var msg json.RawMessage
+			if err := c.conn.ReadJSON(&msg); err != nil {
+				if e, ok := err.(*websocket.CloseError); ok {
+					return fmt.Errorf("websocketrpc: listen: connection closed with code %d (%s)", e.Code, e.Text)
+				}
+				continue
 			}
-			continue
-		}
 
-		var parsedMsg messagePayload
-		if err := json.Unmarshal(msg, &parsedMsg); err != nil {
-			c.log.Errorf("websocketrpc: listen: error unmarshaling event: %v", err)
-			continue
-		}
+			var parsedMsg messagePayload
+			if err := json.Unmarshal(msg, &parsedMsg); err != nil {
+				c.log.Errorf("websocketrpc: listen: error unmarshaling event: %v", err)
+				continue
+			}
 
-		if parsedMsg.IsEvent() {
-			event := parsedMsg.GetEvent()
-			c.eventChan <- event
-		} else if parsedMsg.IsResponse() {
-			resp := parsedMsg.GetResponse()
-			c.respChan <- resp
+			if parsedMsg.IsEvent() {
+				event := parsedMsg.GetEvent()
+				c.eventChan <- event
+			} else if parsedMsg.IsResponse() {
+				resp := parsedMsg.GetResponse()
+				c.respChan <- resp
+			}
 		}
 	}
 }
 
 // runner function runs the websocket rpc service.
-func (c *Client) runner() error {
+func (c *Client) runner(ctx context.Context) error {
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case req, open := <-c.reqChan:
 			if open {
 				if err := c.conn.WriteJSON(req); err != nil {
@@ -306,27 +296,26 @@ func (c *Client) runner() error {
 func (c *Client) Run(ctx context.Context) error {
 	eg, _ := errgroup.WithContext(ctx)
 
-	eg.Go(c.listener)
-	eg.Go(c.runner)
+	eg.Go(func() error {
+		return c.listener(ctx)
+	})
+	eg.Go(func() error {
+		return c.runner(ctx)
+	})
 
 	c.log.Infof("websocketrpc: running...")
-
-	<-ctx.Done()
-	c.log.Infof("websocketrpc: run: context done, stopping...")
-	eg.Go(c.unsubscribeAll)
+	defer func() { c.log.Infof("websocketrpc: stopped") }()
 
 	if err := eg.Wait(); err != nil {
 		c.log.Errorf("websocketrpc: run: error: %v", err)
 	}
 
+	c.unsubscribeAll()
 	c.conn = nil
-
 	// Close all channels.
 	close(c.reqChan)
 	close(c.respChan)
 	close(c.eventChan)
-
-	c.log.Infof("websocketrpc: stopped")
 
 	return nil
 }
