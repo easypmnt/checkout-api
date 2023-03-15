@@ -9,7 +9,7 @@ Payment API server based on the [Solana blockchain](https://solana.com).
 
 - [x] Supports two payment flows: `classic` (via solana wallet adapter button) and `QR code`.
 - [x] Webhooks for transaction status updates on the client's server.
-- [x] SSE for transaction status updates on the client's browser.
+- [ ] SSE for transaction status updates on the client's browser.
 - [x] Ability to use as a standalone API server or as a library.
 - [x] Oauth2 authorization for client.
 - [x] Support for authomated token swaps, if a customer pays with a token that the merchant does not support (using [Jupiter](https://jup.ag)).
