@@ -202,7 +202,7 @@ func (b *PaymentBuilder) mintBonus(builder *solana.TransactionBuilder) *solana.T
 		MintOwner: b.bonusAuthAccount.PublicKey.ToBase58(),
 		MintTo:    b.tx.SourceWallet,
 		Amount:    bonusAmount,
-	}))
+	})).AddSigner(*b.bonusAuthAccount)
 }
 
 func (b *PaymentBuilder) transferToken(builder *solana.TransactionBuilder) *solana.TransactionBuilder {
@@ -212,7 +212,7 @@ func (b *PaymentBuilder) transferToken(builder *solana.TransactionBuilder) *sola
 		Mint:      b.tx.DestinationMint,
 		Reference: b.tx.Reference,
 		Amount:    b.tx.TotalAmount,
-	})).AddSigner(b.referenceAccount)
+	}))
 }
 
 func (b *PaymentBuilder) transferSOL(builder *solana.TransactionBuilder) *solana.TransactionBuilder {
@@ -221,7 +221,7 @@ func (b *PaymentBuilder) transferSOL(builder *solana.TransactionBuilder) *solana
 		Recipient: b.tx.DestinationWallet,
 		Reference: b.tx.Reference,
 		Amount:    b.tx.TotalAmount,
-	})).AddSigner(b.referenceAccount)
+	}))
 }
 
 func (b *PaymentBuilder) swap(builder *solana.TransactionBuilder) (*solana.TransactionBuilder, error) {
