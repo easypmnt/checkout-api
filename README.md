@@ -23,6 +23,7 @@ Payment API server based on the [Solana blockchain](https://solana.com).
 
 ### Comming soon
 
+- [ ] Project documentation, in addition to the default on [pkg.go.dev](https://pkg.go.dev/github.com/easypmnt/checkout-api)
 - [ ] Split payments between multiple merchants.
 - [ ] Typescript/Javascript SDK and widget for quick integration into a project.
 - [ ] Plugins for popular CMS (e.g., WordPress, PrestaShop, etc).
