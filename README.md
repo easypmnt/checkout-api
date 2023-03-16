@@ -11,6 +11,9 @@ Payment API server based on the [Solana blockchain](https://solana.com).
 
 [Checkout page](https://example-checkout.easypmnt.com) is connected to the mainnet node and demonstrates purchasing via QR code, accruing and applying bonuses, and automatic token swapping if needed.
 
+[![Demo](./example.gif)](https://example-checkout.easypmnt.com)
+
+
 ## Features
 
 - [x] Supports two payment flows: `classic` (via solana wallet adapter button) and `QR code`.
@@ -29,3 +32,8 @@ Payment API server based on the [Solana blockchain](https://solana.com).
 - [ ] Plugins for popular CMS (e.g., WordPress, PrestaShop, etc).
 - [ ] Web UI to configure payment server options.
 - [ ] More options for the loyalty program: bonus cards with different discount levels or additional benefits, bonus for N purchases, etc.
+
+
+## How it works
+
+[![How it works](./how_it_works.png)](https://example-checkout.easypmnt.com)
