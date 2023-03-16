@@ -39,6 +39,7 @@ func (s *Service) CreatePayment(ctx context.Context, payment *Payment) (*Payment
 	if payment.Amount == 0 {
 		return nil, fmt.Errorf("payment amount must be greater than 0")
 	}
+	payment.DestinationMint = MintAddress(payment.DestinationMint, s.conf.DestinationMint)
 
 	result, err := s.repo.CreatePayment(ctx, repository.CreatePaymentParams{
 		ExternalID:        sql.NullString{String: payment.ExternalID, Valid: payment.ExternalID != ""},
@@ -86,9 +87,7 @@ func (s *Service) GeneratePaymentLink(ctx context.Context, paymentID uuid.UUID, 
 		return "", fmt.Errorf("payment already %s", payment.Status)
 	}
 
-	if mint == "" {
-		mint = SOL
-	}
+	mint = MintAddress(mint, payment.DestinationMint)
 
 	uri := strings.Join([]string{
 		strings.TrimRight(s.conf.SolPayBaseURL, "/"),
@@ -156,6 +155,8 @@ func (s *Service) BuildTransaction(ctx context.Context, tx *Transaction) (*Trans
 	if payment.Status != PaymentStatusNew && payment.Status != PaymentStatusPending {
 		return nil, fmt.Errorf("payment already %s", payment.Status)
 	}
+	payment.DestinationMint = MintAddress(payment.DestinationMint, s.conf.DestinationMint)
+	tx.SourceMint = MintAddress(tx.SourceMint, payment.DestinationMint)
 
 	base64Tx, tx, err := NewPaymentTransactionBuilder(s.sol, s.jup, s.conf).
 		SetTransaction(tx, payment).
