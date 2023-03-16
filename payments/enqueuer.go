@@ -90,7 +90,6 @@ func (e *Enqueuer) enqueueTask(ctx context.Context, task *asynq.Task, opts ...as
 // FireEvent enqueues a task to fire an event.
 // This function returns an error if the task could not be enqueued.
 func (e *Enqueuer) CheckPaymentByReference(ctx context.Context, reference string) error {
-	fmt.Println("CheckPaymentByReference:", reference)
 	task, err := json.Marshal(ReferencePayload{Reference: reference})
 	if err != nil {
 		return fmt.Errorf("CheckPaymentByReference: failed to marshal task payload: %w", err)

@@ -139,10 +139,11 @@ func (s *ServiceEvents) UpdateTransaction(ctx context.Context, reference string,
 	}
 
 	s.fireEvent(events.TransactionUpdated, events.TransactionUpdatedPayload{
-		PaymentID: events.PaymentID{PaymentID: tx.PaymentID.String()},
-		Reference: tx.Reference,
-		Status:    string(tx.Status),
-		Signature: tx.Signature,
+		PaymentID:   events.PaymentID{PaymentID: tx.PaymentID.String()},
+		Reference:   tx.Reference,
+		Status:      string(tx.Status),
+		Signature:   tx.Signature,
+		Transaction: tx,
 	})
 
 	return nil

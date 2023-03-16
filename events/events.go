@@ -60,9 +60,10 @@ type (
 
 	TransactionUpdatedPayload struct {
 		PaymentID
-		Reference string `json:"reference"`
-		Status    string `json:"status"`
-		Signature string `json:"signature"`
+		Reference   string      `json:"reference"`
+		Status      string      `json:"status"`
+		Signature   string      `json:"signature"`
+		Transaction interface{} `json:"transaction,omitempty"`
 	}
 
 	ReferencePayload struct {

@@ -16,9 +16,7 @@ import (
 	"github.com/easypmnt/checkout-api/repository"
 	"github.com/easypmnt/checkout-api/server"
 	"github.com/easypmnt/checkout-api/solana"
-	"github.com/easypmnt/checkout-api/sse"
 	"github.com/easypmnt/checkout-api/webhook"
-	"github.com/easypmnt/checkout-api/websocketrpc"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/oauth"
 	"github.com/hibiken/asynq"
@@ -30,7 +28,7 @@ import (
 
 func main() {
 	// Init logger
-	logrus.SetReportCaller(true)
+	logrus.SetReportCaller(false)
 	logger := logrus.WithFields(logrus.Fields{
 		"app":       appName,
 		"build_tag": buildTagRuntime,
@@ -100,10 +98,10 @@ func main() {
 	paymentEnqueuer := payments.NewEnqueuer(asynqClient)
 
 	// Setup event listener
-	wsConn := openWebsocketConnection(ctx, solanaWSSEndpoint, logger, eg)
-	websocketrpcClient := websocketrpc.NewClient(wsConn,
-		websocketrpc.WithEventsEmitter(eventEmitter),
-	)
+	// wsConn := openWebsocketConnection(ctx, solanaWSSEndpoint, logger, eg)
+	// websocketrpcClient := websocketrpc.NewClient(wsConn,
+	// 	websocketrpc.WithEventsEmitter(eventEmitter),
+	// )
 
 	var paymentService payments.PaymentService
 	// Payment service
@@ -129,11 +127,11 @@ func main() {
 	paymentService = payments.NewServiceLogger(paymentService, logger)
 
 	// Init sse service
-	sseService := sse.NewService(sse.NewMemStorage())
+	// sseService := sse.NewService(sse.NewMemStorage())
 
 	// Event listener
 	eventEmitter.On(events.TransactionUpdated, payments.UpdateTransactionStatusListener(paymentService))
-	// eventEmitter.On(events.TransactionCreated, payments.TransactionCreatedListener(paymentService, paymentEnqueuer))
+	eventEmitter.On(events.TransactionCreated, payments.TransactionCreatedListener(paymentService, paymentEnqueuer))
 	eventEmitter.On(
 		events.TransactionReferenceNotification,
 		payments.ReferenceAccountNotificationListener(paymentService, paymentEnqueuer),
@@ -142,10 +140,10 @@ func main() {
 		webhook.TranslateEventsToWebhookEvents(webhookEnqueuer),
 		events.AllEvents...,
 	)
-	eventEmitter.ListenEvents(
-		sse.TranslateEventsToSSEChannel(sseService),
-		events.AllEvents...,
-	)
+	// eventEmitter.ListenEvents(
+	// 	sse.TranslateEventsToSSEChannel(sseService),
+	// 	events.AllEvents...,
+	// )
 
 	// Event broadcaster
 	eventBroadcaster := events.NewEventBroadcaster(eventEmitter, logger)
@@ -215,9 +213,9 @@ func main() {
 	})
 
 	// Run event listener
-	eg.Go(func() error {
-		return websocketrpcClient.Run(ctx)
-	})
+	// eg.Go(func() error {
+	// 	return websocketrpcClient.Run(ctx)
+	// })
 
 	// Run all goroutines
 	if err := eg.Wait(); err != nil {

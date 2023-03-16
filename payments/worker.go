@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/hibiken/asynq"
 )
@@ -75,31 +76,47 @@ func (w *Worker) CheckPaymentByReference(ctx context.Context, t *asynq.Task) err
 		return fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
-	tx, err := w.svc.GetTransactionByReference(ctx, p.Reference)
-	if err != nil {
-		return fmt.Errorf("failed to get transaction by reference: %w", err)
-	}
+	ctx, cancel := context.WithTimeout(ctx, time.Minute*2)
+	defer cancel()
 
-	if tx.Status != TransactionStatusPending {
-		return nil
-	}
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
 
-	txSign, err := w.sol.ValidateTransactionByReference(
-		ctx,
-		p.Reference,
-		tx.DestinationWallet,
-		tx.TotalAmount,
-		tx.DestinationMint,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to validate transaction by reference: %w", err)
-	}
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			tx, err := w.svc.GetTransactionByReference(ctx, p.Reference)
+			if err != nil {
+				continue
+				// return fmt.Errorf("failed to get transaction by reference: %w", err)
+			}
 
-	if err := w.svc.UpdateTransaction(ctx, p.Reference, TransactionStatusCompleted, txSign); err != nil {
-		return fmt.Errorf("failed to update transaction status: %w", err)
-	}
+			if tx.Status != TransactionStatusPending {
+				return nil
+			}
 
-	return nil
+			txSign, err := w.sol.ValidateTransactionByReference(
+				ctx,
+				p.Reference,
+				tx.DestinationWallet,
+				tx.TotalAmount,
+				tx.DestinationMint,
+			)
+			if err != nil {
+				continue
+				// return fmt.Errorf("failed to validate transaction by reference: %w", err)
+			}
+
+			if err := w.svc.UpdateTransaction(ctx, p.Reference, TransactionStatusCompleted, txSign); err != nil {
+				continue
+				// return fmt.Errorf("failed to update transaction status: %w", err)
+			}
+
+			return nil
+		}
+	}
 }
 
 // MarkTransactionsAsExpired marks transactions as expired.

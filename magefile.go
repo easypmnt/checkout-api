@@ -44,7 +44,7 @@ func Down() error {
 }
 
 // Run api
-func RunApi() error {
+func Api() error {
 	fmt.Println("Starting api...")
 	return sh.Run("go", "run", "./cmd/api/")
 }

@@ -238,6 +238,8 @@ func (c *Client) listener(ctx context.Context) error {
 				continue
 			}
 
+			c.log.Infof("websocketrpc: listen: received message: %s", msg)
+
 			var parsedMsg messagePayload
 			if err := json.Unmarshal(msg, &parsedMsg); err != nil {
 				c.log.Errorf("websocketrpc: listen: error unmarshaling event: %v", err)
