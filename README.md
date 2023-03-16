@@ -36,4 +36,5 @@ Payment API server based on the [Solana blockchain](https://solana.com).
 
 ## How it works
 
-[![How it works](./how_it_works.png)](https://example-checkout.easypmnt.com)
+[![How it works](./how_it_works.png)](https://docs.solanapay.com/core/transfer-request/merchant-integration)
+According to the [Solanapay protocol](https://docs.solanapay.com/core/transfer-request/merchant-integration).
