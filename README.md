@@ -7,13 +7,24 @@
 
 Payment API server based on the [Solana blockchain](https://solana.com).
 
+### Demo
+
+[Checkout page](https://example-checkout.easypmnt.com) is connected to the mainnet node and demonstrates purchasing via QR code, accruing and applying bonuses, and automatic token swapping if needed.
+
 ## Features
 
 - [x] Supports two payment flows: `classic` (via solana wallet adapter button) and `QR code`.
 - [x] Webhooks for transaction status updates on the client's server.
-- [ ] SSE for transaction status updates on the client's browser.
+- [x] Transaction status updates via websocket (useful for client-side widgets).
 - [x] Ability to use as a standalone API server or as a library.
 - [x] Oauth2 authorization for client.
 - [x] Support for authomated token swaps, if a customer pays with a token that the merchant does not support (using [Jupiter](https://jup.ag)).
 - [x] A loyalty program for customers to earn bonuses for purchases and redeem them for discounts.
+
+### Comming soon
+
 - [ ] Split payments between multiple merchants.
+- [ ] Typescript/Javascript SDK and widget for quick integration into a project.
+- [ ] Plugins for popular CMS (e.g., WordPress, PrestaShop, etc).
+- [ ] Web UI to configure payment server options.
+- [ ] More options for the loyalty program: bonus cards with different discount levels or additional benefits, bonus for N purchases, etc.
