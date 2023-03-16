@@ -189,7 +189,7 @@ func makeGetPaymentByExternalIDEndpoint(ps paymentService) endpoint.Endpoint {
 type GeneratePaymentLinkRequest struct {
 	PaymentID  uuid.UUID `json:"-" validate:"-" label:"Payment ID"`
 	Mint       string    `json:"mint,omitempty" validate:"-" label:"Selected Mint"`
-	ApplyBonus string    `json:"apply_bonus,omitempty" validate:"bool" label:"Apply Bonus"`
+	ApplyBonus bool      `json:"apply_bonus,omitempty" validate:"bool" label:"Apply Bonus"`
 }
 
 // GeneratePaymentLinkResponse is the response type for the GeneratePaymentLink method.
@@ -208,8 +208,7 @@ func makeGeneratePaymentLinkEndpoint(ps paymentService) endpoint.Endpoint {
 			return nil, validator.NewValidationError(v)
 		}
 
-		applyBonus, _ := strconv.ParseBool(req.ApplyBonus)
-		link, err := ps.GeneratePaymentLink(ctx, req.PaymentID, req.Mint, applyBonus)
+		link, err := ps.GeneratePaymentLink(ctx, req.PaymentID, req.Mint, req.ApplyBonus)
 		if err != nil {
 			return nil, err
 		}
