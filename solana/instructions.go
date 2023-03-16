@@ -171,7 +171,7 @@ func (p TransferTokenParam) Validate() error {
 // of the caller to check this.
 // FeePayer must be provided if Sender is not set.
 func TransferToken(params TransferTokenParam) InstructionFunc {
-	return func(ctx context.Context, _ SolanaClient) ([]types.Instruction, error) {
+	return func(ctx context.Context, c SolanaClient) ([]types.Instruction, error) {
 		if err := params.Validate(); err != nil {
 			return nil, errors.Wrap(err, "invalid parameters for TransferToken instruction")
 		}
@@ -190,6 +190,21 @@ func TransferToken(params TransferTokenParam) InstructionFunc {
 			return nil, fmt.Errorf("failed to find associated token address for recipient wallet: %w", err)
 		}
 
+		instructions := make([]types.Instruction, 0, 2)
+
+		if exists, _ := c.DoesTokenAccountExist(ctx, recipientAta.ToBase58()); !exists {
+			instructions = append(instructions,
+				associated_token_account.CreateAssociatedTokenAccount(
+					associated_token_account.CreateAssociatedTokenAccountParam{
+						Funder:                 senderPubKey,
+						Owner:                  recipientPubKey,
+						Mint:                   mintPubKey,
+						AssociatedTokenAccount: recipientAta,
+					},
+				),
+			)
+		}
+
 		instruction := token.Transfer(token.TransferParam{
 			From:   senderAta,
 			To:     recipientAta,
@@ -205,7 +220,9 @@ func TransferToken(params TransferTokenParam) InstructionFunc {
 			})
 		}
 
-		return []types.Instruction{instruction}, nil
+		instructions = append(instructions, instruction)
+
+		return instructions, nil
 	}
 }
 
