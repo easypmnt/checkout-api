@@ -79,7 +79,7 @@ func (w *Worker) CheckPaymentByReference(ctx context.Context, t *asynq.Task) err
 	ctx, cancel := context.WithTimeout(ctx, time.Minute*2)
 	defer cancel()
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
 	for {
