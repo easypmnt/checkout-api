@@ -98,7 +98,7 @@ type CreatePaymentRequest struct {
 
 // CreatePaymentResponse is the response type for the CreatePayment method.
 type CreatePaymentResponse struct {
-	PaymentID uuid.UUID `json:"payment_id"`
+	Payment *payments.Payment `json:"payment"`
 }
 
 // makeCreatePaymentEndpoint returns an endpoint function for the CreatePayment method.
@@ -125,7 +125,7 @@ func makeCreatePaymentEndpoint(ps paymentService) endpoint.Endpoint {
 			return nil, err
 		}
 
-		return CreatePaymentResponse{PaymentID: payment.ID}, nil
+		return CreatePaymentResponse{Payment: payment}, nil
 	}
 }
 
