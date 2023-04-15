@@ -150,6 +150,7 @@ type BestSwapParams struct {
 	InputMint            string // input mint
 	OutputMint           string // output mint
 	Amount               uint64 // amount of output token
+	SwapMode             string // swap mode, default: ExactIn (Available: ExactIn, ExactOut)
 }
 
 // ExchangeRateParams contains the parameters for the exchange rate request.

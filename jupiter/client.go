@@ -219,12 +219,15 @@ func (c *Client) RoutesMap(onlyDirectRoutes bool) (IndexedRoutesMap, error) {
 // Default swap mode: ExactOut, so the amount is the amount of output token.
 // Default wrap unwrap sol: true
 func (c *Client) BestSwap(params BestSwapParams) (string, error) {
+	if params.SwapMode == "" {
+		params.SwapMode = SwapModeExactIn
+	}
 	routes, err := c.Quote(QuoteParams{
 		InputMint:        params.InputMint,
 		OutputMint:       params.OutputMint,
 		Amount:           params.Amount,
 		FeeBps:           params.FeeAmount,
-		SwapMode:         SwapModeExactOut,
+		SwapMode:         params.SwapMode,
 		OnlyDirectRoutes: false,
 	})
 	if err != nil {
